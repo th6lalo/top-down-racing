@@ -1,0 +1,4 @@
+# Zależności potrzebne tylko do testów — nie do uruchomienia gry.
+-r requirements.txt
+pytest
+websockets

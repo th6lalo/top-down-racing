@@ -36,13 +36,26 @@ metadata 169.254) zwraca teraz IDENTYCZNY komunikat. Adresy publiczne
 | 5 śmieciowych wejść mapy | 5 wyjątków | **0 wyjątków** |
 | milion punktów | milion konwersji | 400 punktów w 0,1 ms |
 
-## Etap 3 — limity, ruch sieciowy, baza 👈 NASTĘPNY
-- [ ] Ograniczenie tempa i rozmiaru komunikatów (#4)
-- [ ] Wyrzucić stałe pola z pakietu stanu, −60% ruchu (#5)
-- [ ] Sprzątanie starych torów w bazie (#6)
-- [ ] Pomiar przed/po
+## Etap 3 — limity, ruch sieciowy, baza ✅
+- [x] Limity tempa i rozmiaru komunikatów (#4) — 150 tekstowych i 120 binarnych/s,
+      64 KB tekst, 8 KB ramka głosu; uporczywy nadmiar = rozłączenie
+- [x] Dane stałe wyjęte z pakietu stanu do komunikatu `roster` (#5)
+- [x] Archiwum torów losowych przycięte do 50 (#6)
+- [x] Pomiar przed/po
 
-## Etap 4 — testy i CI ⏳
+**Zmierzone:**
+| | przed | po |
+|---|---|---|
+| pakiet stanu, 8 graczy | 1150 B | **550 B** |
+| ruch wychodzący, 8 graczy | 269,5 kB/s | **128,9 kB/s** (−52%) |
+| plik bazy | 6,12 MB | **3,80 MB** (−38%) |
+| pola w pakiecie stanu | 9 | 5 (`id,x,y,angle,level`) |
+
+Uwaga: raport przewidywał −60% ruchu, ale ta liczba zakładała też skrócenie
+nazw pól. Nie zrobiłem tego — kod byłby mniej czytelny. Zmierzone: −52%.
+Wyniki (298) i tory rysowane (89) nietknięte, kopia `races.db.backup-etap3-1918`.
+
+## Etap 4 — testy i CI 👈 NASTĘPNY
 - [ ] `pytest` + testy walidatorów torów
 - [ ] Testy walidacji wejścia z Etapu 2
 - [ ] GitHub Actions
@@ -60,3 +73,4 @@ metadata 169.254) zwraca teraz IDENTYCZNY komunikat. Adresy publiczne
 
 - **Etap 1** zamknięty. SSRF był realny — potwierdzony trzema sygnałami, teraz jednym.
 - **Etap 2** zamknięty. Ranking przestał być fikcją.
+- **Etap 3** zamknięty. Ruch sieciowy o połowę mniejszy, baza o 38%.
