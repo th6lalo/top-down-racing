@@ -14,6 +14,7 @@ Model nieautorytatywny, oparty na zaufaniu (świadomie — to hobby).
 import asyncio
 import itertools
 import json
+import math
 import random
 import ssl
 import re
@@ -291,6 +292,63 @@ async def start_race(track: dict):
     await broadcast({"type": "race_start", "track": track})
 
 
+def _liczba(v, domyslna):
+    """Zamień na float tylko jeśli wynik jest skończoną liczbą. NaN i nieskończoność
+    odrzucamy — inaczej trafiają do pakietu stanu i psują matematykę u wszystkich."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return float(domyslna)
+    return f if math.isfinite(f) else float(domyslna)
+
+
+def _punkty_mapy(surowe, limit=400):
+    """Punkty rysowanej trasy od klienta. Obcinamy PRZED konwersją (inaczej milion
+    punktów to milion konwersji), a błędne wpisy pomijamy zamiast wywracać
+    obsługę połączenia."""
+    if not isinstance(surowe, list):
+        return []
+    out = []
+    for para in surowe[:limit]:
+        if not isinstance(para, (list, tuple)) or len(para) != 2:
+            continue
+        x, y = _liczba(para[0], float("nan")), _liczba(para[1], float("nan"))
+        if math.isfinite(x) and math.isfinite(y):
+            out.append([x, y])
+    return out
+
+
+def _meta_odrzucona(p):
+    """Czy zgłoszenie mety jest wiarygodne? Zwraca powód odrzucenia albo None.
+
+    Serwer wierzył wcześniej na słowo — klient testowy wygrywał w 0,33 s nie
+    ruszając się z miejsca. Sprawdzamy dwie rzeczy, których nie da się obejść
+    samym wysłaniem komunikatu:
+      1. gracz musi FAKTYCZNIE stać w prostokącie mety (wg pozycji, którą sam
+         raportował — a ta jest już ograniczona do rozmiaru mapy),
+      2. czas nie może być krótszy, niż fizycznie da się przejechać dystans
+         start-meta przy maksymalnej prędkości z boostem.
+
+    To nie jest pełny antycheat — ten wymagałby liczenia fizyki na serwerze.
+    Podnosi jednak poprzeczkę z „wyślij jeden pakiet" do „symuluj wiarygodny przejazd".
+    """
+    if not current_track:
+        return "brak toru"
+    f = current_track.get("finish") or {}
+    mgn = 90.0                       # zapas na promień auta i opóźnienie sieci
+    x, y = p.get("x", 0.0), p.get("y", 0.0)
+    if not (f["x"] - mgn <= x <= f["x"] + f["w"] + mgn and
+            f["y"] - mgn <= y <= f["y"] + f["h"] + mgn):
+        return f"gracz nie jest przy mecie ({x:.0f},{y:.0f})"
+    st = current_track.get("start") or {}
+    dyst = math.hypot(f["x"] + f["w"] / 2 - st.get("x", 0), f["y"] + f["h"] / 2 - st.get("y", 0))
+    min_czas = dyst / 1000.0         # 1000 px/s = hojnie powyżej maksimum z boostem
+    uplynelo = time.monotonic() - race_started_at
+    if uplynelo < min_czas:
+        return f"czas {uplynelo:.2f}s poniżej fizycznego minimum {min_czas:.2f}s"
+    return None
+
+
 def build_drawn_track(pts):
     """Zbuduj i zwaliduj trasę z rysunku gracza. None = odrzucona."""
     if len(pts) < 2:
@@ -513,16 +571,23 @@ async def ws_endpoint(ws: WebSocket):
             elif t == "pos":
                 p = players.get(pid)
                 if p and p.get("active") and phase == "racing":
-                    p["x"] = float(msg.get("x", p["x"]))
-                    p["y"] = float(msg.get("y", p["y"]))
-                    p["angle"] = float(msg.get("angle", p["angle"]))
+                    # Klient podaje własną pozycję, więc MUSI być sprawdzona.
+                    # float("nan") i float("inf") przechodzą bez mrugnięcia, a potem
+                    # każde porównanie odległości z NaN daje fałsz — psuje to zasięg
+                    # czatu i kolizje WSZYSTKIM graczom, nie tylko oszustowi.
+                    x = _liczba(msg.get("x"), p["x"])
+                    y = _liczba(msg.get("y"), p["y"])
+                    a = _liczba(msg.get("angle"), p["angle"])
+                    rozm = (current_track or {}).get("size") or WORLD
+                    p["x"] = min(max(x, -200.0), float(rozm["w"]) + 200.0)
+                    p["y"] = min(max(y, -200.0), float(rozm["h"]) + 200.0)
+                    p["angle"] = a % (2 * math.pi)
                     p["level"] = 1 if msg.get("level") else 0
 
             elif t == "map":
                 async with lock:
                     if phase == "drawing" and pid == drawer_id:
-                        pts = msg.get("points") or []
-                        pts = [[float(a), float(b)] for a, b in pts][:400]
+                        pts = _punkty_mapy(msg.get("points"))
                         # budowa i walidacja trasy z rysunku też potrafi potrwać — do wątku
                         t = await asyncio.to_thread(build_drawn_track, pts)
                         if t is None:
@@ -534,6 +599,10 @@ async def ws_endpoint(ws: WebSocket):
                 async with lock:
                     p = players.get(pid)
                     if p and p.get("active") and not p.get("done") and phase == "racing":
+                        powod = _meta_odrzucona(p)
+                        if powod:
+                            print(f"[meta] odrzucona dla {p['name']}: {powod}", flush=True)
+                            continue
                         p["done"] = True
                         finish_order.append(pid)
                         place = len(finish_order)
