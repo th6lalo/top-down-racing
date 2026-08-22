@@ -356,14 +356,28 @@ const KENNEY_PLIKI = {
 };
 const KENNEY_IMG = {};
 let KENNEY_GOTOWE = false;
+const CZEKAJACY_NA_GRAFIKI = [];
+
+// Grafiki wczytują się asynchronicznie, a miniaturki malują się od razu przy
+// starcie strony — bez tego haczyka pokazywały wersję rysowaną kodem i dopiero
+// kliknięcie w kafelek pokazywało prawdziwą karoserię.
+function gdyGrafikiGotowe(fn) {
+  if (KENNEY_GOTOWE) fn();
+  else CZEKAJACY_NA_GRAFIKI.push(fn);
+}
+
+function grafikiGotowe() {
+  KENNEY_GOTOWE = Object.keys(KENNEY_IMG).length > 0;
+  while (CZEKAJACY_NA_GRAFIKI.length) CZEKAJACY_NA_GRAFIKI.shift()();
+}
 let UZYJ_KENNEY = true;                // przełącznik: grafiki vs rysowanie kodem
 
 function wczytajKenney(gdy) {
   let zostalo = Object.keys(KENNEY_PLIKI).length;
   for (const k in KENNEY_PLIKI) {
     const im = new Image();
-    im.onload = () => { KENNEY_IMG[k] = im; if (--zostalo === 0) { KENNEY_GOTOWE = true; gdy && gdy(); } };
-    im.onerror = () => { if (--zostalo === 0) { KENNEY_GOTOWE = Object.keys(KENNEY_IMG).length > 0; gdy && gdy(); } };
+    im.onload = () => { KENNEY_IMG[k] = im; if (--zostalo === 0) { grafikiGotowe(); gdy && gdy(); } };
+    im.onerror = () => { if (--zostalo === 0) { grafikiGotowe(); gdy && gdy(); } };
     im.src = KENNEY_PLIKI[k];
   }
 }

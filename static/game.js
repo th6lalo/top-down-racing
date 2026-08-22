@@ -554,6 +554,8 @@ let jestemGosciem = true;   // dopóki nie dołączy — zakładamy tryb gościa
   }
   function paintAll() { opts.forEach(paintPreview); }
   paintAllPreviews = paintAll;   // przełącznik grafik odświeża podglądy
+  // Grafiki aut dochodzą po chwili — przemaluj miniaturki, gdy będą gotowe.
+  gdyGrafikiGotowe(paintAll);
 
   // paski statystyk pod miniaturką — od razu widać, czym różnią się klasy
   function addStats(btn) {
