@@ -32,7 +32,8 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import db
-from track import random_track, track_from_line, reachable, centerline_ok, WORLD
+from track import (random_track, track_from_line, reachable, centerline_ok,
+                   dodaj_panele, WORLD)
 
 players: dict[int, dict] = {}
 connections: dict[int, WebSocket] = {}
@@ -375,7 +376,7 @@ def build_drawn_track(pts):
     t = track_from_line("Rysowana", pts)
     if not reachable(t) or not centerline_ok(t):
         return None
-    return t
+    return dodaj_panele(t, random.Random())   # trasy rysowane też dostają panele nitro
 
 
 @asynccontextmanager

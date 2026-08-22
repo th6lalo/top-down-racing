@@ -175,8 +175,10 @@ def _gen_maze(cols, rows, braid, jitter, rnd):
 
 
 
-def maze_path_len(t):
-    """Długość najkrótszej trasy przez labirynt (px) — do oszacowania czasu wyścigu."""
+def maze_solve(t):
+    """Najkrótsza trasa przez labirynt jako lista komórek (od startu do mety).
+    Używane dwa razy: do oszacowania czasu wyścigu i do rozmieszczenia paneli
+    nitro OBOK tej trasy — panel na trasie optymalnej byłby darmowy."""
     m = t.get("maze")
     if not m:
         return None
@@ -203,8 +205,17 @@ def maze_path_len(t):
     while c:
         cells.append(c)
         c = prev[c]
-    steps = len(cells) - 1
-    return steps * (cw + ch) / 2          # średnia długość kroku między komórkami
+    cells.reverse()
+    return cells
+
+
+def maze_path_len(t):
+    """Długość najkrótszej trasy przez labirynt (px) — do oszacowania czasu wyścigu."""
+    cells = maze_solve(t)
+    if not cells:
+        return None
+    m = t["maze"]
+    return (len(cells) - 1) * (m["cw"] + m["ch"]) / 2   # średni krok między komórkami
 
 
 AI_SPEED = 503          # px/s — zmierzona średnia prędkość przejazdu (kalibracja)
@@ -499,7 +510,103 @@ def knot_track(rnd=None, size=None):
     return fallback or spiral_track(rnd, size)
 
 
+PANEL_R = 58            # promień panelu w px — trafialny, ale nie automatyczny
+
+
+def _panele_labirynt(t, rnd, ile=6):
+    """Panele w komórkach SĄSIADUJĄCYCH z trasą optymalną, ale na niej nieleżących.
+    Wjazd po panel to zawsze objazd (wjedź i wróć), więc panel kosztuje czas —
+    inaczej byłby tylko ładowaniem biernym w przebraniu."""
+    m = t.get("maze")
+    trasa = maze_solve(t)
+    if not m or not trasa:
+        return []
+    na_trasie = set(map(tuple, trasa))
+    przejscia = set()
+    for a, b, c, d in m["passages"]:
+        przejscia.add(((a, b), (c, d)))
+        przejscia.add(((c, d), (a, b)))
+    kandydaci = []
+    for cel in trasa[1:-1]:                       # pomijamy komórkę startu i mety
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            n = (cel[0] + dx, cel[1] + dy)
+            if (0 <= n[0] < m["cols"] and 0 <= n[1] < m["rows"]
+                    and n not in na_trasie and (cel, n) in przejscia):
+                kandydaci.append(n)
+    rnd.shuffle(kandydaci)
+    wybrane, uzyte = [], set()
+    for c in kandydaci:
+        if c in uzyte:
+            continue
+        uzyte.add(c)
+        wybrane.append({"x": round(M + (c[0] + 0.5) * m["cw"]),
+                        "y": round(M + (c[1] + 0.5) * m["ch"])})
+        if len(wybrane) >= ile:
+            break
+    return wybrane
+
+
+def _panele_korytarz(t, rnd, ile=5):
+    """Panele na ZEWNĘTRZNEJ linii zakrętu. Tor korytarzowy ma jedną drogę, więc
+    panel kosztuje nie objazd, tylko gorszą linię przejazdu — trzeba rozszerzyć
+    łuk zamiast ciąć go po wewnętrznej."""
+    P = t.get("path")
+    if not P or len(P) < 12:
+        return []
+    pol = (t.get("width", 200) / 2) * 0.62        # jak daleko od osi w stronę zewnętrzną
+    zakrety = []
+    for i in range(4, len(P) - 4):
+        ax, ay = P[i][0] - P[i - 3][0], P[i][1] - P[i - 3][1]
+        bx, by = P[i + 3][0] - P[i][0], P[i + 3][1] - P[i][1]
+        la, lb = math.hypot(ax, ay), math.hypot(bx, by)
+        if la < 1 or lb < 1:
+            continue
+        skret = (ax * by - ay * bx) / (la * lb)   # iloczyn wektorowy = jak ostry zakręt
+        if abs(skret) > 0.25:
+            zakrety.append((abs(skret), i, skret, bx / lb, by / lb))
+    zakrety.sort(reverse=True)
+    wybrane, uzyte = [], []
+    # Trasa narysowana łagodnym łukiem może nie mieć ANI JEDNEGO ostrego zakrętu.
+    # Bez zabezpieczenia zostałaby zupełnie bez nitro, bo ładowanie bierne jest
+    # przycięte. Wtedy rozkładamy panele równomiernie, na przemian po bokach.
+    if len(zakrety) < ile:
+        krok = max(6, (len(P) - 10) // (ile + 1))
+        for n in range(1, ile + 1):
+            i = 5 + n * krok
+            if i >= len(P) - 5:
+                break
+            dx, dy = P[i + 2][0] - P[i - 2][0], P[i + 2][1] - P[i - 2][1]
+            dl = math.hypot(dx, dy) or 1.0
+            bok = 1 if n % 2 else -1
+            wybrane.append({"x": round(P[i][0] - dy / dl * pol * bok),
+                            "y": round(P[i][1] + dx / dl * pol * bok)})
+        return wybrane
+    for _, i, skret, dx, dy in zakrety:
+        if any(abs(i - j) < 6 for j in uzyte):    # nie kupkuj paneli obok siebie
+            continue
+        uzyte.append(i)
+        nx, ny = (-dy, dx) if skret < 0 else (dy, -dx)   # normalna na ZEWNĄTRZ łuku
+        wybrane.append({"x": round(P[i][0] + nx * pol), "y": round(P[i][1] + ny * pol)})
+        if len(wybrane) >= ile:
+            break
+    return wybrane
+
+
+def dodaj_panele(t, rnd):
+    """Panele nitro doklejone do gotowego, zwalidowanego toru."""
+    t["pads"] = _panele_labirynt(t, rnd) if t.get("maze") else _panele_korytarz(t, rnd)
+    t["pad_r"] = PANEL_R
+    return t
+
+
 def random_track():
+    """Losowy tor z panelami nitro. Opakowanie zamiast łatania każdego z kilku
+    punktów wyjścia niżej — dzięki temu ŻADNA ścieżka nie odda toru bez paneli."""
+    t = _losuj_tor()
+    return dodaj_panele(t, random.Random())
+
+
+def _losuj_tor():
     """Losowy tor: spirala do centrum z mostami albo labirynt (oba klimaty)."""
     rnd = random.Random()
     forced = os.environ.get("RACES_FORCE_TRACK")     # tryb testowy

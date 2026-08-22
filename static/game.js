@@ -212,6 +212,14 @@ const BOOST_RECHARGE = 0.45;   // energii/s odzyskiwane (pełne ~4s)
 const BOOST_SPEED_MULT = 1.8;  // ile razy większy limit prędkości na booście
 const BOOST_ACCEL_MULT = 2.4;  // ile razy mocniejsze przyspieszenie na booście
 let boostAvail = 0;            // aktualna energia boostu (s) — na starcie wyścigu zawsze 0
+// Nitro ładuje się głównie z PANELI na torze. Bierne napełnianie zostaje, ale
+// mocno przycięte — żeby ominięcie wszystkich paneli nie zostawiało gracza
+// zupełnie bez boostu, a jednocześnie żeby panele naprawdę o czymś decydowały.
+const LADOWANIE_BIERNE = 0.30;   // ile z dawnego tempa zostaje (0 = tylko panele)
+const PANEL_DAJE = 0.40;         // ile zbiornika daje jeden panel
+const PANEL_ODNOWA = 8.0;        // sekundy, zanim ten sam panel znów zadziała
+const padStygnie = {};           // indeks panelu -> kiedy znów będzie aktywny
+const padBlysk = {};             // indeks -> ile jeszcze trwa animacja zebrania
 let boosting = false;
 
 // ---- Widok / kamera (mapa jest większa niż ekran) ----
@@ -294,6 +302,8 @@ requestAnimationFrame(loop);
 function applyTrack(t) {
   track = t;
   clearMarks();                      // nowy tor zaczyna się czystym asfaltem
+  for (const k in padStygnie) delete padStygnie[k];
+  for (const k in padBlysk) delete padBlysk[k];
   if (trackLabel) trackLabel.textContent = "🏁 " + (t.name || "Tor");
   runsCache = null;                  // przelicz odcinki mostów przy nowym torze
   buildMinimap();                    // przelicz statyczne tło minimapy raz (nie co klatkę)
@@ -652,7 +662,8 @@ function update(dt) {
   const BB = bodyOf(me.body);
   boosting = K.boost() && boostAvail > 0;
   if (boosting) boostAvail = Math.max(0, boostAvail - dt);
-  else boostAvail = Math.min(BB.bMax, boostAvail + BB.bRe * dt);
+  else boostAvail = Math.min(BB.bMax, boostAvail + BB.bRe * LADOWANIE_BIERNE * dt);
+  zbierzPanele(dt);
 
   // Prędkość „do przodu" względem obecnej osi auta — potrzebna do skrętu.
   let h = { x: Math.cos(me.angle), y: Math.sin(me.angle) };
@@ -988,6 +999,7 @@ function render() {
 
   // ---- Ślady opon: leżą na asfalcie, więc murki i meta je zasłaniają ----
   drawMarks(0);
+  drawPanele();            // panele nitro — nad asfaltem, pod murkami i autami
 
   // ---- Meta jako uniesiona płyta ----
   const f = track.finish;
@@ -1041,6 +1053,64 @@ function render() {
 
   // Minimapa (statyczne tło z cache + dynamiczne kropki)
   drawMinimap();
+}
+
+// Zbieranie paneli. Panel działa raz na PANEL_ODNOWA sekund, żeby nie dało się
+// stać na nim i „doić" go w kółko.
+function zbierzPanele(dt) {
+  if (!track || !track.pads || !track.pads.length) return;
+  const r = (track.pad_r || 58);
+  const teraz = performance.now() / 1000;
+  const BB = bodyOf(me.body);
+  for (let i = 0; i < track.pads.length; i++) {
+    if (padStygnie[i] > teraz) continue;
+    const p = track.pads[i];
+    const dx = me.x - p.x, dy = me.y - p.y;
+    if (dx * dx + dy * dy > r * r) continue;
+    padStygnie[i] = teraz + PANEL_ODNOWA;
+    padBlysk[i] = 0.5;
+    boostAvail = Math.min(BB.bMax, boostAvail + BB.bMax * PANEL_DAJE);
+    if (settings.sfx && typeof blip === "function") {
+      blip("triangle", 520, 1180, 0.16, 0.16);      // krótkie „ding" przy zebraniu
+    }
+  }
+  for (const i in padBlysk) {
+    padBlysk[i] -= dt;
+    if (padBlysk[i] <= 0) delete padBlysk[i];
+  }
+}
+
+// Rysowane na jezdni, pod autami. Zebrany panel gaśnie i wraca po odnowie —
+// widać po nim, czy warto po niego jechać.
+function drawPanele() {
+  if (!track || !track.pads || !track.pads.length) return;
+  const r = (track.pad_r || 58);
+  const teraz = performance.now() / 1000;
+  for (let i = 0; i < track.pads.length; i++) {
+    const p = track.pads[i];
+    if (p.x < cam.x - r || p.x > cam.x + VIEW.w + r ||
+        p.y < cam.y - r || p.y > cam.y + VIEW.h + r) continue;
+    const gotowy = !(padStygnie[i] > teraz);
+    const blysk = padBlysk[i] || 0;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    const puls = gotowy ? 1 + 0.06 * Math.sin(teraz * 4 + i) : 0.9;
+    ctx.scale(puls + blysk, puls + blysk);
+    ctx.globalAlpha = gotowy ? 1 : 0.28;
+    ctx.fillStyle = gotowy ? "rgba(80,190,255,.22)" : "rgba(120,130,150,.15)";
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = gotowy ? "#5ec8ff" : "#6b7385";
+    ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = gotowy ? "#bfeaff" : "#7d8698";   // strzałki „w górę obrotów"
+    ctx.lineWidth = 5; ctx.lineCap = "round";
+    for (const oy of [-13, 3]) {
+      ctx.beginPath();
+      ctx.moveTo(-16, oy + 10); ctx.lineTo(0, oy - 6); ctx.lineTo(16, oy + 10);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
