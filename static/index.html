@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Wyścigi — multiplayer</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #14161c;
+      color: #e6e6e6;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    h1 { font-size: 20px; margin: 12px 0 4px; letter-spacing: .5px; }
+    #hint { font-size: 13px; color: #8b93a7; margin-bottom: 8px; }
+
+    /* Ekran wejścia */
+    /* POCZEKALNIA: pełnoekranowa nakładka. Zostaje, dopóki gracz nie kliknie „Dołącz".
+       Wcześniej panel potrafił uciec poza ekran telefonu i nie dało się wpisać nicku. */
+    #join {
+      position: fixed; inset: 0; z-index: 20;
+      display: flex; flex-direction: column; gap: 10px;
+      align-items: center; justify-content: center;
+      background: rgba(10,12,16,.94); padding: 16px; overflow-y: auto;
+    }
+    #join input[type=text] {
+      background: #0f1116; border: 1px solid #333a4a; color: #fff;
+      padding: 8px 10px; border-radius: 8px; font-size: 14px; width: 160px;
+    }
+    #join input[type=color] {
+      width: 40px; height: 36px; border: none; background: none; cursor: pointer;
+    }
+    #joinTitle { font-size: 15px; font-weight: 800; color: #dfe6f2; }
+    #joinTitle span { display: block; font-size: 11px; font-weight: 500; color: #8b93a7; margin-top: 2px; }
+    .join-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .pick { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #b8c0d0; }
+    #bodyPicker { gap: 8px; }
+    .body-opt {
+      background: #0f1116; border: 2px solid #333a4a; border-radius: 10px;
+      padding: 6px 8px 4px; cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; gap: 2px; color: #9aa4b8; font-size: 11px; font-weight: 700;
+    }
+    .body-opt:hover { border-color: #4a5568; }
+    .body-opt.selected { border-color: #4f7cff; color: #dfe6f2; background: #171d2b; }
+    .body-opt canvas { display: block; width: 86px; height: 52px; }
+    .body-opt em { font-style: normal; font-size: 9.5px; color: #6f7a8d; font-weight: 600; }
+    .stats { display: grid; grid-template-columns: auto 1fr; gap: 2px 5px; margin-top: 4px; width: 86px; }
+    .stats span { font-size: 8px; color: #6f7a8d; font-weight: 700; letter-spacing: .02em; }
+    .stats i { display: block; height: 4px; background: #2a3242; border-radius: 2px; overflow: hidden; }
+    .stats i b { display: block; height: 100%; background: #4f7cff; }
+    .body-opt.selected .stats i b { background: #7fa6ff; }
+    .body-opt.selected em { color: #9fb0c7; }
+    #joinBtn { align-self: center; }
+    #join > button {
+      background: #4f7cff; color: #fff; border: none; padding: 9px 18px;
+      border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    #join > button:hover { background: #6a8fff; }
+
+    #wrap { position: relative; }
+    #c {
+      background: #1b3a2a; border-radius: 12px; display: block;
+      box-shadow: 0 8px 30px rgba(0,0,0,.4); max-width: 96vw; height: auto;
+    }
+    #status {
+      position: absolute; top: 10px; left: 10px; font-size: 12px;
+      background: rgba(0,0,0,.45); padding: 4px 8px; border-radius: 6px; color: #cfe;
+    }
+    #trackLabel {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      font-size: 14px; font-weight: 700; color: #ffe6a1;
+      background: rgba(0,0,0,.45); padding: 4px 12px; border-radius: 6px;
+    }
+    /* Pasek boostu */
+    #boost {
+      position: absolute; bottom: 12px; left: 12px; width: 200px;
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 8px;
+    }
+    #boost .label { font-size: 12px; color: #dfe6f2; white-space: nowrap; }
+    #boostTrack {
+      flex: 1; height: 8px; background: #2a3242; border-radius: 4px; overflow: hidden;
+    }
+    #boostFill { height: 100%; width: 100%; background: #4f7cff; border-radius: 4px; }
+    /* Wskaźnik push-to-talk */
+    #ptt {
+      position: absolute; bottom: 12px; left: 232px; display: none;
+      background: rgba(210,60,60,.92); color: #fff; padding: 6px 14px;
+      border-radius: 20px; font-size: 13px; font-weight: 800; letter-spacing: .04em;
+    }
+    #ptt.show { display: block; }
+    /* ===== Sterowanie dotykowe (telefon/tablet) ===== */
+    #touch { display: none; }
+    /* Sterowanie pokazujemy WYŁĄCZNIE podczas jazdy — wcześniej zasłaniało lobby
+       i przycisk „Gotowy" (leżało nad nim). */
+    body.touch.state-racing #touch {
+      display: block; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    }
+    .tc-left, .tc-right {
+      position: absolute; bottom: 14px; display: flex; gap: 12px; pointer-events: auto;
+    }
+    .tc-left { left: 14px; }
+    .tc-right { right: 14px; align-items: flex-end; }
+    .tbtn {
+      width: 74px; height: 74px; border-radius: 50%;
+      background: rgba(20,26,38,.72); color: #dfe6f2; border: 2px solid #46516a;
+      font-size: 26px; font-weight: 800; touch-action: none; user-select: none;
+      -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tbtn:active, .tbtn.on { background: rgba(79,124,255,.85); border-color: #9db6ff; }
+    .tb-gas { width: 88px; height: 88px; background: rgba(35,120,60,.72); border-color: #3f8f5a; }
+    .tb-gas:active, .tb-gas.on { background: rgba(60,200,110,.9); }
+    .tb-boost { width: 62px; height: 62px; background: rgba(120,90,20,.72); border-color: #8a6b23; }
+    .tb-boost:active, .tb-boost.on { background: rgba(255,196,60,.9); color: #2a1e00; }
+    .tb-brake { width: 62px; height: 62px; }
+    .tb-mic {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      width: 58px; height: 58px; font-size: 22px; pointer-events: auto;
+      background: rgba(20,26,38,.6);
+    }
+    .tb-mic.on { background: rgba(210,60,60,.9); border-color: #ff9d9d; }
+    /* ===== Układ na małych ekranach ===== */
+    @media (max-width: 900px) {
+      body { padding: 0; }
+      h1 { font-size: 15px; margin: 6px 0 2px; }
+      #hint { font-size: 11px; margin-bottom: 4px; padding: 0 8px; text-align: center; }
+      /* plansza ma się zmieścić i w szerokość, i w WYSOKOŚĆ ekranu (proporcja 1100:720) */
+      #c { max-width: min(100vw, calc(100vh * 1.528)); border-radius: 0; box-shadow: none; }
+      body.playing h1, body.playing #hint { display: none; }   /* w grze liczy się każdy piksel */
+      #join { padding: 10px; gap: 8px; }
+      #join input[type=text] { width: 44%; }
+      .body-opt canvas { width: 64px; height: 38px; }
+      .body-opt { padding: 4px 5px 3px; font-size: 10px; }
+      .stats { width: 64px; }
+      .lobby-card, .lb-card, .set-card { width: 96%; padding: 14px 14px; max-height: 88vh; }
+      #lbToggle { top: 8px; right: 8px; }
+      #setToggle { top: 44px; right: 8px; }
+      #telemetry { top: 82px; right: 8px; font-size: 10px; max-width: 62vw; }
+      #boost { width: 140px; bottom: auto; top: 44px; left: 8px; }
+      #ptt { left: auto; right: 8px; bottom: auto; top: 8px; }
+      #drawUI { bottom: 8px; padding: 8px 10px; }
+      #drawUI .msg { font-size: 11px; }
+      #countdown { font-size: 84px; }
+    }
+    /* UWAGA na kolejność: reguła bazowa MUSI być przed media query, inaczej ją nadpisze */
+    #rotate {
+      display: none; position: fixed; inset: 0; z-index: 30;
+      background: #0d1016; color: #dfe6f2; align-items: center; justify-content: center;
+      text-align: center; font-size: 18px; font-weight: 700; padding: 24px; line-height: 1.6;
+    }
+    @media (max-width: 900px) and (orientation: portrait) {
+      #rotate { display: flex; }
+      body.touch.state-racing #touch { display: none; }   /* w pionie nie pokazuj sterowania */
+    }
+    /* Telemetria */
+    #telemetry {
+      position: absolute; top: 240px; right: 12px; z-index: 5; display: none;
+      background: rgba(6,10,16,.86); border: 1px solid #2b3446; border-radius: 10px;
+      padding: 8px 12px; max-width: 330px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px; line-height: 1.75; color: #b9c4d6;
+      font-variant-numeric: tabular-nums; pointer-events: none;
+    }
+    #telemetry.show { display: block; }
+    #telemetry .tel-head { color: #7fe3a6; font-weight: 700; margin-bottom: 4px; }
+    #telemetry .tel-head span { color: #5d6b7f; font-weight: 400; }
+    #telemetry b { color: #ffe27a; font-weight: 700; }
+    #telemetry .tel-p { color: #8fb9ff; }
+    /* Odliczanie 3-2-1 */
+    #countdown {
+      position: absolute; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      font-size: 130px; font-weight: 900; color: #fff;
+      text-shadow: 0 6px 30px rgba(0,0,0,.7); pointer-events: none;
+      letter-spacing: 2px;
+    }
+    #countdown.show { display: flex; animation: pop .4s ease-out; }
+    @keyframes pop { from { transform: scale(1.6); opacity: .2; } to { transform: scale(1); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { #countdown.show { animation: none; } }
+    /* Baner zwycięzcy */
+    #banner {
+      position: absolute; inset: 0; display: none;
+      align-items: center; justify-content: center; flex-direction: column;
+      background: rgba(10,12,16,.72); border-radius: 12px; text-align: center;
+    }
+    #banner.show { display: flex; }
+    #banner .big { font-size: 34px; font-weight: 800; margin-bottom: 6px; }
+    #banner .sub { font-size: 15px; color: #b8c0d0; }
+    #rematchBtn {
+      margin-top: 16px; background: #4f7cff; color: #fff; border: none;
+      padding: 10px 22px; border-radius: 8px; font-size: 15px; font-weight: 600;
+      cursor: pointer;
+    }
+    #rematchBtn:hover { background: #6a8fff; }
+    /* Ekran czekania / oglądania */
+    #waitOverlay {
+      position: absolute; inset: 0; display: none;
+      align-items: center; justify-content: center; text-align: center;
+      background: rgba(10,12,16,.55); border-radius: 12px;
+      font-size: 26px; font-weight: 800; color: #eaf0fb; padding: 20px;
+    }
+    #waitOverlay.show { display: flex; }
+    /* LOBBY */
+    #lobby {
+      position: absolute; inset: 0; display: none; z-index: 6;
+      align-items: center; justify-content: center; background: rgba(8,10,14,.82);
+      border-radius: 12px;
+    }
+    #lobby.show { display: flex; }
+    .lobby-card {
+      background: #161b26; border: 1px solid #2b3446; border-radius: 16px;
+      width: min(520px, 92%); max-height: 86%; overflow: auto; padding: 22px 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.55);
+    }
+    .lobby-card h2 { margin: 0 0 4px; font-size: 24px; }
+    .lobby-card .sub { margin: 0 0 16px; font-size: 13px; color: #8b93a7; }
+    .lp-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 10px; border-top: 1px solid #232c3b;
+    }
+    .lp-row:first-child { border-top: none; }
+    .lp-row canvas { flex: none; }
+    .lp-name { flex: 1; font-weight: 700; font-size: 15px; overflow: hidden;
+               text-overflow: ellipsis; white-space: nowrap; }
+    .lp-me { color: #8fb9ff; }
+    .lp-ready { font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .lp-ready.yes { color: #4fd08a; }
+    .lp-ready.no { color: #7f8a9c; }
+    #readyBtn {
+      margin-top: 18px; width: 100%; background: #37c26a; color: #06210f; border: none;
+      padding: 12px; border-radius: 10px; font-weight: 800; font-size: 16px; cursor: pointer;
+    }
+    #readyBtn:hover { background: #49d67c; }
+    #readyBtn.on { background: #384252; color: #dfe6f2; }
+    /* Panel rysowania trasy */
+    #drawUI {
+      position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+      display: none; align-items: center; gap: 12px;
+      background: rgba(10,12,16,.8); padding: 10px 16px; border-radius: 12px;
+      max-width: 92%;
+    }
+    #drawUI.show { display: flex; flex-wrap: wrap; justify-content: center; }
+    #drawUI .msg { font-size: 13px; color: #dfe6f2; }
+    #drawUI .msg b { color: #ffe27a; }
+    #drawTimer { font-weight: 800; color: #ffd24a; font-variant-numeric: tabular-nums; }
+    #drawUI button {
+      border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px;
+      font-weight: 700; cursor: pointer;
+    }
+    #drawClear { background: #384252; color: #fff; }
+    #drawClear:hover { background: #465266; }
+    #drawSubmit { background: #37c26a; color: #06210f; }
+    #drawSubmit:hover { background: #49d67c; }
+    /* Tabela wyników */
+    #lbToggle {
+      position: absolute; top: 168px; right: 12px; z-index: 3;
+      background: rgba(0,0,0,.5); color: #ffe27a; border: 1px solid #5a4b1f;
+      padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    #lbToggle:hover { background: rgba(0,0,0,.75); }
+    #leaderboard {
+      position: absolute; inset: 0; display: none; z-index: 4;
+      align-items: center; justify-content: center;
+      background: rgba(8,10,14,.72); border-radius: 12px;
+    }
+    #leaderboard.show { display: flex; }
+    .lb-card {
+      background: #161b26; border: 1px solid #2b3446; border-radius: 14px;
+      width: min(520px, 92%); max-height: 82%; overflow: auto; padding: 18px 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    }
+    .lb-card h2 { margin: 0 0 4px; font-size: 22px; }
+    .lb-card .sub { margin: 0 0 14px; font-size: 13px; color: #8b93a7; }
+    .lb-head, .lb-row {
+      display: grid; grid-template-columns: 30px 1fr auto auto auto; gap: 10px;
+      align-items: center; padding: 7px 8px; font-size: 14px;
+    }
+    .lb-head { color: #8b93a7; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+    .lb-row { border-top: 1px solid #232c3b; }
+    .lb-row:first-child .lb-rank { color: #ffd24a; }
+    .lb-rank { color: #7f8aa0; font-weight: 800; text-align: center; }
+    .lb-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-wins { color: #ffd24a; font-variant-numeric: tabular-nums; }
+    .lb-races, .lb-best { color: #aab4c6; font-variant-numeric: tabular-nums; }
+    .lb-empty { color: #8b93a7; padding: 16px; text-align: center; }
+    #lbClose {
+      margin-top: 14px; width: 100%; background: #4f7cff; color: #fff; border: none;
+      padding: 9px; border-radius: 8px; font-weight: 700; cursor: pointer;
+    }
+    #lbClose:hover { background: #6a8fff; }
+    #toast {
+      position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 5;
+      background: rgba(0,0,0,.82); color: #fff; padding: 8px 16px; border-radius: 20px;
+      font-size: 14px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+    /* Ustawienia */
+    #setToggle {
+      position: absolute; top: 206px; right: 12px; z-index: 3;
+      background: rgba(0,0,0,.5); color: #dfe6f2; border: 1px solid #3a4456;
+      padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    #setToggle:hover { background: rgba(0,0,0,.75); }
+    #settings {
+      position: absolute; inset: 0; display: none; z-index: 6;
+      align-items: center; justify-content: center; background: rgba(8,10,14,.72); border-radius: 12px;
+    }
+    #settings.show { display: flex; }
+    .set-card {
+      background: #161b26; border: 1px solid #2b3446; border-radius: 14px;
+      width: min(460px, 92%); max-height: 86%; overflow: auto; padding: 20px 22px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    }
+    .set-card h2 { margin: 0 0 12px; font-size: 21px; }
+    .set-card h3 {
+      margin: 16px 0 7px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: #8b93a7;
+    }
+    .set-card .rules { margin: 0; padding-left: 18px; font-size: 14px; color: #cfd6e2; line-height: 1.7; }
+    .set-card .rules b { color: #ffe27a; }
+    .set-row { display: flex; align-items: center; gap: 10px; font-size: 14px; margin: 9px 0; }
+    .set-row input[type=range] { flex: 1; accent-color: #4f7cff; }
+    .set-row input[type=checkbox] { width: 17px; height: 17px; accent-color: #4f7cff; }
+    .set-row label { flex: 1; cursor: pointer; }
+    #setClose {
+      margin-top: 16px; width: 100%; background: #4f7cff; color: #fff; border: none;
+      padding: 10px; border-radius: 8px; font-weight: 700; cursor: pointer;
+    }
+    #setClose:hover { background: #6a8fff; }
+    .set-note { font-size: 12px; color: #8b93a7; margin: 4px 0 8px; line-height: 1.5; }
+    .set-row input[type=text] {
+      flex: 1; background: #0f1116; border: 1px solid #333a4a; color: #fff;
+      padding: 7px 9px; border-radius: 7px; font-size: 13px; min-width: 0;
+    }
+    .set-row input[type=file] { font-size: 12px; color: #cfd6e2; max-width: 55%; }
+    .set-row button.mini {
+      background: #384252; color: #fff; border: none; border-radius: 7px;
+      padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .set-row button.mini:hover { background: #465266; }
+    #engStatus { font-size: 12px; color: #8b93a7; }
+    #saveRow { display: flex; gap: 9px; align-items: flex-start; text-align: left;
+               margin: 12px auto 4px; max-width: 340px; padding: 9px 11px;
+               background: #151b26; border: 1px solid #232c3b; border-radius: 10px;
+               cursor: pointer; font-size: 12.5px; color: #cfd6e4; }
+    #saveRow input { margin-top: 2px; flex: 0 0 auto; }
+    #saveRow em { color: #8b93a7; font-style: normal; font-size: 11.5px; }
+    .lb-note { font-size: 12px; padding: 7px 10px; border-radius: 8px; margin-bottom: 8px; }
+    .lb-note.gosc  { background: #2a2214; color: #f0cf8e; }
+    .lb-note.zapis { background: #142a1c; color: #9fe6b0; }
+    .snd-test { flex-wrap: wrap; gap: 6px; }
+    .snd-test button { flex: 1 1 auto; }
+  </style>
+</head>
+<body>
+  <h1>🏁 Wyścigi — multiplayer</h1>
+  <div id="hint">Ustawienia, sterowanie i zasady: przycisk <b>⚙️ Ustawienia</b> w rogu planszy</div>
+
+  <div id="join">
+    <div id="joinTitle">🚗 Przygotuj auto
+      <span>Wpisz nick, wybierz karoserię i kolory — potem wchodzisz do lobby</span>
+    </div>
+    <div class="join-row">
+      <input id="name" type="text" placeholder="Twój nick" maxlength="20" />
+      <label class="pick"><span>Auto</span><input id="color" type="color" value="#ff5a5a" title="Kolor auta" /></label>
+      <label class="pick"><span>Dym</span><input id="smoke" type="color" value="#cfcfcf" title="Kolor dymu" /></label>
+    </div>
+    <div class="join-row" id="bodyPicker">
+      <button class="body-opt selected" data-body="sport"><canvas width="86" height="52"></canvas><span>Sport</span><em>uniwersalny · ciasne trasy</em></button>
+      <button class="body-opt" data-body="muscle"><canvas width="86" height="52"></canvas><span>Muscle</span><em>król prostych · ślizgowy</em></button>
+      <button class="body-opt" data-body="van"><canvas width="86" height="52"></canvas><span>Van</span><em>taran · najwolniejszy</em></button>
+      <button class="body-opt" data-body="kart"><canvas width="86" height="52"></canvas><span>Kart</span><em>kręte tory · lekki</em></button>
+    </div>
+    <label id="saveRow">
+      <input type="checkbox" id="setSave" checked />
+      <span><b>💾 Zapisuj moje wyniki</b> na tym urządzeniu<br />
+      <em>Odznacz, żeby grać jako gość — wtedy grasz normalnie, ale nic nie trafia do rankingu.</em></span>
+    </label>
+    <button id="joinBtn">Dołącz do lobby →</button>
+  </div>
+
+  <div id="wrap">
+    <canvas id="c" width="1100" height="720"></canvas>
+    <div id="status">łączenie…</div>
+    <div id="trackLabel">🏁 Tor</div>
+    <div id="countdown"></div>
+    <div id="boost">
+      <span class="label">🚀 Spacja</span>
+      <div id="boostTrack"><div id="boostFill"></div></div>
+    </div>
+    <div id="ptt">🎙️ MÓWISZ</div>
+    <div id="touch">
+      <div class="tc-left">
+        <button class="tbtn" data-key="a">◀</button>
+        <button class="tbtn" data-key="d">▶</button>
+      </div>
+      <div class="tc-right">
+        <button class="tbtn tb-brake" data-key="s">▼</button>
+        <button class="tbtn tb-boost" data-key=" ">🚀</button>
+        <button class="tbtn tb-gas" data-key="w">▲</button>
+      </div>
+      <button id="tMic" class="tbtn tb-mic" data-key="v">🎙️</button>
+    </div>
+    <div id="telemetry"><div class="tel-head">📊 Telemetria <span>(F3)</span></div><div id="telBody">zbieram dane…</div></div>
+    <div id="waitOverlay"></div>
+    <div id="lobby">
+      <div class="lobby-card">
+        <h2>🏁 Lobby</h2>
+        <p class="sub" id="lobbySub">Wyścig ruszy, gdy wszyscy klikną „Gotowy"</p>
+        <div id="lobbyList"></div>
+        <button id="readyBtn">✅ Jestem gotowy</button>
+      </div>
+    </div>
+    <div id="drawUI">
+      <span class="msg">✏️ Narysuj trasę myszką — <b>gdzie zaczniesz to START, gdzie skończysz to META</b>. Program obuduje linię ścianami.</span>
+      <span id="drawTimer">45s</span>
+      <button id="drawClear">Wyczyść</button>
+      <button id="drawSubmit">Zaczynamy! 🏁</button>
+    </div>
+    <div id="banner">
+      <div class="big" id="bannerBig">—</div>
+      <div class="sub" id="bannerSub"></div>
+      <button id="rematchBtn">🔄 Nowy wyścig</button>
+    </div>
+
+    <button id="lbToggle">🏆 Wyniki</button>
+    <div id="toast"></div>
+    <div id="leaderboard">
+      <div class="lb-card">
+        <h2>🏆 Tabela wyników</h2>
+        <p class="sub">Ranking po zwycięstwach · przy remisie liczy się najlepszy czas</p>
+        <div class="lb-head">
+          <span>#</span><span>Gracz</span><span>Wygrane</span><span>Wyścigi</span><span>Best</span>
+        </div>
+        <div id="lbNote" class="lb-note"></div>
+        <div id="lbBody"></div>
+        <button id="lbClose">Zamknij</button>
+      </div>
+    </div>
+
+    <button id="setToggle">⚙️ Ustawienia</button>
+    <div id="settings">
+      <div class="set-card">
+        <h2>⚙️ Ustawienia i sterowanie</h2>
+
+        <h3>Sterowanie</h3>
+        <ul class="rules">
+          <li><b>W</b> / <b>↑</b> — gaz &nbsp; <b>S</b> / <b>↓</b> — hamulec/wsteczny (W+S = hamulec)</li>
+          <li><b>A</b> / <b>D</b> — skręt</li>
+          <li><b>Spacja</b> — booster 🚀 (na starcie pusty, ładuje się w trakcie jazdy)</li>
+          <li><b>V</b> — mów na czacie głosowym (trzymaj, żeby nadawać)</li>
+        </ul>
+
+        <h3>Zasady</h3>
+        <ul class="rules">
+          <li>Dojedź pierwszy do niebieskiej <b>METY</b> — wygrywasz.</li>
+          <li>Mapy na przemian: raz <b>rysuje losowy gracz</b>, raz <b>losowa</b>.</li>
+          <li>Kto dołączy w trakcie — czeka jako <b>widz</b> i wchodzi w następnej rundzie.</li>
+          <li>Wyniki i czasy trafiają do <b>tabeli 🏆</b>.</li>
+        </ul>
+
+        <h3>Dźwięk</h3>
+        <div class="set-row"><label for="setSound">🔊 Silnik</label><input type="checkbox" id="setSound" /></div>
+        <div class="set-row"><label for="setSfx">💥 Efekty (uderzenia, pisk opon)</label><input type="checkbox" id="setSfx" /></div>
+        <div class="set-row"><label for="setArt">🎨 Grafiki aut (Kenney) zamiast rysowanych kodem</label><input type="checkbox" id="setArt" /></div>
+        <div class="set-row"><span>Głośność ogólna</span><input type="range" id="setVol" min="0" max="1" step="0.05" /></div>
+        <div class="set-row"><span>Głośność silnika</span><input type="range" id="setEngVol" min="0" max="1" step="0.05" /></div>
+        <div class="set-row"><span>Głośność efektów</span><input type="range" id="setSfxVol" min="0" max="1" step="0.05" /></div>
+        <div class="set-row"><span>Charakter silnika</span><input type="range" id="setPitch" min="0.5" max="1.8" step="0.05" /></div>
+        <div class="set-row"><label for="setHear">👥 Słysz silniki innych graczy</label><input type="checkbox" id="setHear" /></div>
+
+        <h3>Odsłuch — dobierz brzmienie uchem</h3>
+        <p class="set-note">Każda klasa ma <b>inną liczbę cylindrów</b>, więc brzmi inaczej z konstrukcji: częstotliwość zapłonów to <b>obroty ÷ 60 × cylindry ÷ 2</b>. Kliknij, żeby usłyszeć rozpędzanie przez wszystkie biegi.</p>
+        <div class="set-row snd-test">
+          <button class="mini" data-rev="sport">🏎️ Sport · R6</button>
+          <button class="mini" data-rev="muscle">💪 Muscle · V8</button>
+          <button class="mini" data-rev="van">🚐 Van · R4</button>
+          <button class="mini" data-rev="kart">🛺 Kart · R2</button>
+        </div>
+        <div class="set-row snd-test">
+          <button class="mini" data-sfx="wall">🧱 Uderzenie w murek</button>
+          <button class="mini" data-sfx="wallHard">🧱 …mocne</button>
+          <button class="mini" data-sfx="crash">🚗 Zderzenie aut</button>
+          <button class="mini" data-sfx="squeal">🛞 Pisk opon</button>
+        </div>
+
+        <h3>Własny dźwięk silnika</h3>
+        <p class="set-note">Wklej <b>bezpośredni link do pliku .mp3/.wav</b> — serwer pobierze go za Ciebie (bez ściągania na dysk). Albo wgraj własny plik. <b>YouTube NIE zadziała</b> (to strona wideo, nie plik audio). Gra zapętli dźwięk i podniesie ton z obrotami; gra tylko u Ciebie. Darmowe: freesound.org (CC0) → „V8 engine loop".</p>
+        <div class="set-row"><label for="engFile">🎧 Wgraj plik audio (.mp3/.wav)</label><input type="file" id="engFile" accept="audio/*" /></div>
+        <div class="set-row"><input type="text" id="engUrl" placeholder="…lub bezpośredni link do pliku .mp3/.wav (NIE YouTube)" /><button id="engUrlBtn" class="mini">Wczytaj</button></div>
+        <div class="set-row"><button id="engSynth" class="mini">🎛️ Wróć do syntezatora</button><span id="engStatus">🎛️ Syntezator (domyślny)</span></div>
+
+        <h3>Czat głosowy (proximity)</h3>
+        <p class="set-note">Rozmawiaj z innymi — <b>trzymaj klawisz V, żeby mówić</b> (push-to-talk). <b>Głos słychać tym głośniej, im bliżej macie auta.</b> Wymaga zgody na mikrofon.</p>
+        <div class="set-row"><label for="setVoice">🎙️ Włącz czat głosowy</label><input type="checkbox" id="setVoice" /></div>
+        <div class="set-row"><label for="setRange">🔵 Pokaż okrąg zasięgu głosu</label><input type="checkbox" id="setRange" /></div>
+        <div class="set-row"><span>Zasięg głosu</span><input type="range" id="setVoiceRange" min="100" max="1600" step="20" /></div>
+        <div class="set-row"><span id="voiceStatus">🎙️ Wyłączony</span></div>
+
+        <h3>Diagnostyka</h3>
+        <div class="set-row"><label for="setTel">📊 Telemetria (FPS, ping, jitter) — klawisz F3</label><input type="checkbox" id="setTel" /></div>
+
+        <button id="setClose">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="carart.js?v=3"></script>
+  <script src="game.js?v=69"></script>
+  <div id="rotate">📱↻<br>Obróć telefon poziomo,<br>żeby zagrać wygodnie</div>
+</body>
+</html>

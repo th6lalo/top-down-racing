@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Regulacja wyglądu aut</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0d1016; color: #e8edf6;
+         font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+  header { padding: 14px 18px; border-bottom: 1px solid #1e2430; }
+  h1 { margin: 0 0 4px; font-size: 18px; }
+  header p { margin: 0; color: #8b93a7; font-size: 13px; }
+  .wrap { display: flex; flex-wrap: wrap; gap: 18px; padding: 18px; align-items: flex-start; }
+  .panel { background: #141922; border: 1px solid #222a38; border-radius: 12px; padding: 14px; }
+  .stage { flex: 1 1 460px; min-width: 320px; }
+  .ctrl { flex: 0 0 340px; max-height: 82vh; overflow-y: auto; }
+  canvas { display: block; border-radius: 10px; background: #37404d; width: 100%; }
+  #real { background: #37404d; margin-top: 12px; image-rendering: pixelated; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #2a3342;
+                 background: #1a2130; color: #cfd6e4; cursor: pointer; font-weight: 600; }
+  .tabs button.on { background: #2f6bff; border-color: #2f6bff; color: #fff; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+       color: #7f89a0; margin: 16px 0 8px; }
+  h2:first-child { margin-top: 0; }
+  .row { display: grid; grid-template-columns: 118px 1fr 46px; gap: 8px;
+         align-items: center; margin-bottom: 6px; }
+  .row label { font-size: 12px; color: #aab3c5; }
+  .row input { width: 100%; }
+  .row output { font-size: 12px; color: #e8edf6; text-align: right;
+                font-variant-numeric: tabular-nums; }
+  .acts { display: flex; gap: 8px; margin-top: 16px; }
+  .acts button { flex: 1; padding: 10px; border-radius: 8px; border: 0; cursor: pointer;
+                 font-weight: 700; background: #2f6bff; color: #fff; }
+  .acts button.ghost { background: #222a38; color: #cfd6e4; }
+  textarea { width: 100%; height: 150px; margin-top: 10px; background: #0b0e14;
+             color: #9fe6b0; border: 1px solid #222a38; border-radius: 8px;
+             padding: 8px; font: 12px/1.45 ui-monospace, Menlo, monospace; }
+  .hint { color: #8b93a7; font-size: 12px; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔧 Regulacja wyglądu aut</h1>
+  <p>Kręć suwakami, aż będzie dobrze — potem kliknij <b>Kopiuj liczby</b> i wklej mi je.
+     Ta strona rysuje <b>tym samym kodem co gra</b>, więc to, co tu widzisz, zobaczysz w wyścigu.</p>
+</header>
+
+<div class="wrap">
+  <div class="panel stage">
+    <div class="tabs" id="tabs"></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:10px;font-size:13px;color:#aab3c5">
+      <input type="checkbox" id="kenney" checked /> Grafiki Kenney (odznacz, żeby zobaczyć wersję rysowaną kodem)
+    </label>
+    <canvas id="duzy" width="900" height="380"></canvas>
+    <canvas id="real" width="900" height="120"></canvas>
+    <p class="hint">Górny obraz to powiększenie ×5. Dolny pokazuje auta w <b>prawdziwej wielkości z gry</b> —
+       to ten widok decyduje, czy wygląda dobrze podczas jazdy.</p>
+  </div>
+
+  <div class="panel ctrl">
+    <h2>Kształt tej klasy</h2>
+    <div id="ksztalt"></div>
+    <h2>Stylistyka (wszystkie klasy)</h2>
+    <div id="styl"></div>
+    <div class="acts">
+      <button id="kopiuj">📋 Kopiuj liczby</button>
+      <button id="reset" class="ghost">↺ Od nowa</button>
+    </div>
+    <textarea id="out" readonly></textarea>
+  </div>
+</div>
+
+<script src="carart.js?v=3"></script>
+<script>
+const KLASY = ["sport", "muscle", "van", "kart"];
+let wybrana = "sport";
+
+// Suwaki kształtu działają na BODIES[klasa], suwaki stylistyki na ART.
+const KSZTALT = [
+  ["w",      "długość",        20, 56, 1,    "px"],
+  ["h",      "szerokość",      10, 30, 1,    "px"],
+  ["noseW",  "zwężenie przodu", 0.35, 1, 0.02, ""],
+  ["tailW",  "zwężenie tyłu",   0.35, 1, 0.02, ""],
+  ["cabW",   "szerokość kabiny",0.4, 1, 0.02, ""],
+  ["cabH",   "wysokość kabiny", 0.2, 2, 0.05, ""],
+  ["height", "wysokość bryły",  0.4, 2, 0.05, ""],
+];
+const STYL = [
+  ["wysNadwozia",  "wysokość nadwozia", 0.5, 8,   0.1],
+  ["wysKabiny",    "wysokość kabiny",   0.3, 6,   0.1],
+  ["bokCiemnosc",  "ciemność boków",    0,   0.9, 0.02],
+  ["obrys",        "siła obrysu",       0,   1,   0.02],
+  ["obrysGrubosc", "grubość obrysu",    0.5, 4,   0.1],
+  ["dachJasnosc",  "jasność dachu",     0,   0.6, 0.02],
+  ["szybaKrycie",  "kontrast szyb",     0.3, 1,   0.02],
+  ["kolaWystaja",  "wystawanie kół",    0,   7,   0.2],
+  ["kolaCiemnosc", "czerń kół",         0.3, 1,   0.02],
+  ["rabek",        "rąbek światła",     0,   0.5, 0.01],
+  ["cien",         "cień na ziemi",     0,   0.7, 0.02],
+];
+
+const START = JSON.parse(JSON.stringify({ ART, BODIES }));
+
+function suwak(host, klucz, etykieta, min, max, krok, jedn, czytaj, zapisz) {
+  const r = document.createElement("div"); r.className = "row";
+  const l = document.createElement("label"); l.textContent = etykieta;
+  const i = document.createElement("input");
+  i.type = "range"; i.min = min; i.max = max; i.step = krok; i.value = czytaj();
+  const o = document.createElement("output"); o.textContent = (+czytaj()).toFixed(2) + (jedn || "");
+  i.addEventListener("input", () => {
+    zapisz(parseFloat(i.value));
+    o.textContent = (+i.value).toFixed(2) + (jedn || "");
+    ART.v++;                       // unieważnij cache sprite'ów
+    rysuj();
+  });
+  r.append(l, i, o); host.appendChild(r);
+}
+
+function zbudujPanele() {
+  const kh = document.getElementById("ksztalt"); kh.innerHTML = "";
+  for (const [k, et, mn, mx, st, jd] of KSZTALT) {
+    suwak(kh, k, et, mn, mx, st, jd, () => BODIES[wybrana][k], (v) => { BODIES[wybrana][k] = v; });
+  }
+  const sh = document.getElementById("styl"); sh.innerHTML = "";
+  for (const [k, et, mn, mx, st] of STYL) {
+    suwak(sh, k, et, mn, mx, st, "", () => ART[k], (v) => { ART[k] = v; });
+  }
+}
+
+function zbudujZakladki() {
+  const t = document.getElementById("tabs"); t.innerHTML = "";
+  for (const k of KLASY) {
+    const b = document.createElement("button");
+    b.textContent = k;
+    b.className = k === wybrana ? "on" : "";
+    b.onclick = () => { wybrana = k; document.getElementById("kenney").onchange = (e) => { UZYJ_KENNEY = e.target.checked; rysuj(); };
+// grafiki wczytują się asynchronicznie — przerysuj, gdy dojdą
+wczytajKenney(() => rysuj());
+zbudujZakladki(); zbudujPanele(); rysuj(); };
+    t.appendChild(b);
+  }
+}
+
+// tło: kawałek jezdni, żeby oceniać auto na tym, po czym jeździ
+function jezdnia(g, w, h) {
+  g.fillStyle = "#2c3038"; g.fillRect(0, 0, w, h);
+  g.strokeStyle = "rgba(255,214,120,.5)"; g.lineWidth = 4;
+  g.setLineDash([30, 26]);
+  g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+  g.setLineDash([]);
+}
+
+function rysuj() {
+  const duzy = document.getElementById("duzy"), g = duzy.getContext("2d");
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (duzy.width !== 900 * dpr) { duzy.width = 900 * dpr; duzy.height = 380 * dpr; }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  jezdnia(g, 900, 380);
+  const katy = [0, Math.PI / 4, Math.PI / 2, Math.PI * 1.25];
+  katy.forEach((a, i) => {
+    g.save();
+    g.translate(120 + i * 220, 190);
+    g.scale(5, 5);
+    drawCarAny(g, 0, 0, a, wybrana, "#e0413f", i === 0, 5 * dpr);
+    g.restore();
+  });
+
+  const real = document.getElementById("real"), g2 = real.getContext("2d");
+  if (real.width !== 900 * dpr) { real.width = 900 * dpr; real.height = 120 * dpr; }
+  g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  jezdnia(g2, 900, 120);
+  KLASY.forEach((k, i) => {
+    [0, Math.PI / 3].forEach((a, j) => {
+      g2.save();
+      g2.translate(90 + i * 210 + j * 80, 60);
+      drawCarAny(g2, 0, 0, a, k, "#e0413f", false, dpr);
+      g2.restore();
+    });
+  });
+
+  document.getElementById("out").value = liczby();
+}
+
+function liczby() {
+  const b = {};
+  for (const k of KLASY) {
+    const s = BODIES[k];
+    b[k] = { w: s.w, h: s.h, noseW: +s.noseW.toFixed(2), tailW: +s.tailW.toFixed(2),
+             cabW: +s.cabW.toFixed(2), cabH: +s.cabH.toFixed(2), height: +s.height.toFixed(2) };
+  }
+  const a = {}; for (const [k] of STYL) a[k] = +(+ART[k]).toFixed(2);
+  return "STYLISTYKA:\n" + JSON.stringify(a, null, 1) +
+         "\n\nKSZTAŁTY:\n" + JSON.stringify(b, null, 1);
+}
+
+document.getElementById("kopiuj").onclick = async () => {
+  const t = document.getElementById("out");
+  try { await navigator.clipboard.writeText(t.value); }
+  catch (e) { t.select(); document.execCommand("copy"); }
+  const b = document.getElementById("kopiuj");
+  b.textContent = "✅ Skopiowane — wklej mi to";
+  setTimeout(() => (b.textContent = "📋 Kopiuj liczby"), 2000);
+};
+document.getElementById("reset").onclick = () => {
+  Object.assign(ART, START.ART);
+  for (const k of KLASY) Object.assign(BODIES[k], START.BODIES[k]);
+  ART.v++; zbudujPanele(); rysuj();
+};
+
+zbudujZakladki(); zbudujPanele(); rysuj();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# środowisko Pythona
+.venv/
+__pycache__/
+*.py[cod]
+
+# dane działającej gry (wyniki i tory graczy — nie należą do repozytorium)
+races.db
+races.db.backup-*
+
+# logi
+*.log
+nohup.out
+
+# system
+.DS_Store
+
+# katalog roboczy — nie należy do projektu
+scratchpad/
