@@ -51,14 +51,26 @@ def init():
         _conn.commit()
 
 
+# Ile torów trzymamy. Każdy to pełny JSON (nawet 68 KB), a odtwarzany bywa
+# praktycznie żaden — archiwum rosło bez końca i zajmowało 96% pliku bazy.
+# Tory RYSOWANE przez graczy zostawiamy wszystkie: są nieodtwarzalne.
+LIMIT_TOROW = 50
+
+
 def save_track(track, source="random"):
-    """Zapisz wygenerowany tor do bazy (archiwum / biblioteka torów)."""
+    """Zapisz wygenerowany tor do bazy i przytnij archiwum do LIMIT_TOROW."""
     with _lock:
         _conn.execute(
             "INSERT INTO tracks (ts, name, source, data) VALUES (?, ?, ?, ?)",
             (datetime.now().isoformat(timespec="seconds"),
              track.get("name"), source, json.dumps(track)),
         )
+        _conn.execute("""
+            DELETE FROM tracks
+             WHERE source = 'random'
+               AND id NOT IN (SELECT id FROM tracks WHERE source = 'random'
+                              ORDER BY id DESC LIMIT ?)
+        """, (LIMIT_TOROW,))
         _conn.commit()
 
 

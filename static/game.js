@@ -401,6 +401,18 @@ function connect() {
         if (!joined) break;
         startRace(msg.track);
         break;
+      case "roster": {
+        // Dane stałe (nick, kolor, karoseria, dym) przychodzą TYLKO przy zmianie
+        // składu, a nie 30 razy na sekundę w każdym pakiecie stanu.
+        rosterById = {};
+        for (const pl of msg.players || []) rosterById[pl.id] = pl;
+        for (const id in othersById) {
+          const r = rosterById[id];
+          if (r) Object.assign(othersById[id],
+                 { name: r.name, color: r.color, body: r.body, smoke: r.smoke });
+        }
+        break;
+      }
       case "state": {
         // telemetria: tempo i równomierność napływu pakietów
         const nowT = performance.now();
@@ -416,8 +428,14 @@ function connect() {
           ids.add(pl.id);
           let o = othersById[pl.id];
           if (!o) o = othersById[pl.id] = { buf: [], x: pl.x, y: pl.y, angle: pl.angle };
-          o.name = pl.name; o.color = pl.color;
-          o.body = pl.body || "sport"; o.smoke = pl.smoke || "#cfcfcf";
+          // dane stałe biorą się ze składu; pakiet stanu niesie już tylko ruch
+          const r = rosterById[pl.id];
+          if (r) {
+            o.name = r.name; o.color = r.color;
+            o.body = r.body || "sport"; o.smoke = r.smoke || "#cfcfcf";
+          } else if (o.name === undefined) {
+            o.name = ""; o.color = "#ff5a5a"; o.body = "sport"; o.smoke = "#cfcfcf";
+          }
           o.level = pl.level || 0;
           const now = performance.now();
           const last = o.buf[o.buf.length - 1];
@@ -514,6 +532,7 @@ document.getElementById("joinBtn").addEventListener("click", () => {
 // ---- Wybór karoserii (miniaturki na ekranie wejścia) ----
 let chosenBody = "sport";
 let paintAllPreviews = null;
+let rosterById = {};        // dane stałe graczy — przychodzą przy zmianie składu
 let jestemGosciem = true;   // dopóki nie dołączy — zakładamy tryb gościa
 {
   const opts = [...document.querySelectorAll(".body-opt")];

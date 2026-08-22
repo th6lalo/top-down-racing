@@ -20,13 +20,23 @@ Zasada: **każdy etap kończy się działającą grą**. Żadnego zostawiania w 
 metadata 169.254) zwraca teraz IDENTYCZNY komunikat. Adresy publiczne
 (example.com, kenney.nl) przechodzą walidację — funkcja nie została zepsuta.
 
-## Etap 2 — serwer przestaje wierzyć klientowi 🔨 w toku
-- [ ] `isfinite` + ograniczenie pozycji do rozmiaru mapy (raport: poważne #3)
-- [ ] Meta weryfikowana po stronie serwera (raport: poważne #2)
-- [ ] Utwardzić parsowanie punktów mapy + obciąć listę PRZED konwersją (#7, #8)
-- [ ] Test dowodzący, że oszust już nie wygrywa
+## Etap 2 — serwer przestaje wierzyć klientowi ✅
+- [x] `isfinite` + ograniczenie pozycji do rozmiaru mapy (#3)
+- [x] Meta weryfikowana po stronie serwera (#2)
+- [x] Utwardzone parsowanie punktów mapy + obcięcie PRZED konwersją (#7, #8)
+- [x] Test dowodzący, że oszust już nie wygrywa
 
-## Etap 3 — limity, ruch sieciowy, baza ⏳
+**Zweryfikowane** tym samym testem co w raporcie:
+| | przed | po |
+|---|---|---|
+| serwer uznał metę | tak | **nie** |
+| zwycięzca | „Oszust" | brak |
+| w bazie | `('Oszust', 1, 0.33)` | **0 wierszy** |
+| `NaN` w pakiecie stanu | `nan` | **nie przeszło** |
+| 5 śmieciowych wejść mapy | 5 wyjątków | **0 wyjątków** |
+| milion punktów | milion konwersji | 400 punktów w 0,1 ms |
+
+## Etap 3 — limity, ruch sieciowy, baza 👈 NASTĘPNY
 - [ ] Ograniczenie tempa i rozmiaru komunikatów (#4)
 - [ ] Wyrzucić stałe pola z pakietu stanu, −60% ruchu (#5)
 - [ ] Sprzątanie starych torów w bazie (#6)
@@ -49,3 +59,4 @@ metadata 169.254) zwraca teraz IDENTYCZNY komunikat. Adresy publiczne
 (uzupełniany na bieżąco)
 
 - **Etap 1** zamknięty. SSRF był realny — potwierdzony trzema sygnałami, teraz jednym.
+- **Etap 2** zamknięty. Ranking przestał być fikcją.

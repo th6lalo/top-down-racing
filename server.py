@@ -179,6 +179,24 @@ def lobby_payload():
     }
 
 
+def roster_payload():
+    """Dane graczy, które SIĘ NIE ZMIENIAJĄ w trakcie wyścigu. Wcześniej leciały
+    w każdym pakiecie stanu — 30 razy na sekundę, do każdego gracza. Przy ośmiu
+    graczach to była większość ruchu sieciowego, całkowicie niepotrzebnie."""
+    return {
+        "type": "roster",
+        "players": [
+            {"id": p["id"], "name": p["name"], "color": p["color"],
+             "body": p.get("body", "sport"), "smoke": p.get("smoke", "#cfcfcf")}
+            for p in players.values() if p.get("joined")
+        ],
+    }
+
+
+async def send_roster():
+    await broadcast(roster_payload())
+
+
 async def send_lobby():
     await broadcast(lobby_payload())
 
@@ -289,6 +307,7 @@ async def start_race(track: dict):
             spawn(p)
         else:
             p["active"] = False
+    await send_roster()          # świeży skład zanim polecą pakiety stanu
     await broadcast({"type": "race_start", "track": track})
 
 
@@ -390,9 +409,8 @@ async def state_broadcaster():
         await broadcast({
             "type": "state",
             "players": [
-                {"id": p["id"], "name": p["name"], "color": p["color"],
-                 "body": p.get("body", "sport"), "smoke": p.get("smoke", "#cfcfcf"),
-                 "level": p.get("level", 0),
+                # tylko dane ZMIENNE — reszta przychodzi raz, w komunikacie "roster"
+                {"id": p["id"], "level": p.get("level", 0),
                  "x": round(p["x"], 1), "y": round(p["y"], 1), "angle": round(p["angle"], 3)}
                 for p in players.values() if p.get("active")
             ],
@@ -405,6 +423,14 @@ async def get_track():
 
 
 MAX_AUDIO = 15 * 1024 * 1024   # limit 15 MB
+
+# Limity na JEDNEGO klienta. Pozycja leci ~60/s z kroku fizyki, ramka głosu
+# ~50/s (20 ms PCM 16 kHz = 640 B), więc progi są z zapasem ponad normalną grę.
+MAX_TEKST = 64 * 1024          # największy sensowny komunikat to mapa z 400 punktami
+MAX_GLOS = 8 * 1024            # ramka głosu; normalna ma ~640 B
+MAX_TEKST_NA_SEK = 150
+MAX_BIN_NA_SEK = 120
+PROG_ROZLACZENIA = 40          # tyle przekroczeń z rzędu i połączenie leci
 _ssl_ctx = ssl.create_default_context(cafile=certifi.where())
 
 
@@ -491,11 +517,39 @@ async def ws_endpoint(ws: WebSocket):
                     "x": 0, "y": 0, "angle": 0}
     await ws.send_json({"type": "welcome", "id": pid})
 
+    # Limity ruchu od JEDNEGO klienta. Bez nich jeden złośliwy gracz zapycha
+    # łącze wszystkim: ramki głosowe są rozsyłane dalej, więc jego nadmiar
+    # zamienia się w nadmiar u każdego. Liczniki zerują się co sekundę.
+    okno = time.monotonic()
+    ile_tekst = ile_bin = 0
+    nadmiar = 0
+
     try:
         while True:
             raw = await ws.receive()
             if raw["type"] == "websocket.disconnect":
                 break
+
+            teraz = time.monotonic()
+            if teraz - okno >= 1.0:
+                okno, ile_tekst, ile_bin = teraz, 0, 0
+
+            if raw.get("bytes") is not None:
+                ile_bin += 1
+                if len(raw["bytes"]) > MAX_GLOS or ile_bin > MAX_BIN_NA_SEK:
+                    nadmiar += 1
+                    if nadmiar > PROG_ROZLACZENIA:
+                        print(f"[limit] rozłączam {pid} — uporczywy nadmiar", flush=True)
+                        break
+                    continue                       # pomiń tę ramkę, nie karz od razu
+            elif raw.get("text") is not None:
+                ile_tekst += 1
+                if len(raw["text"]) > MAX_TEKST or ile_tekst > MAX_TEKST_NA_SEK:
+                    nadmiar += 1
+                    if nadmiar > PROG_ROZLACZENIA:
+                        print(f"[limit] rozłączam {pid} — uporczywy nadmiar", flush=True)
+                        break
+                    continue
             # Głos = ramka binarna (surowy PCM). Doklej id nadawcy i roześlij dalej.
             b = raw.get("bytes")
             if b is not None:
@@ -567,6 +621,7 @@ async def ws_endpoint(ws: WebSocket):
                                             "spectator": False})
                     await ws.send_json({"type": "leaderboard", "top": db.leaderboard(10)})
                     await send_lobby()
+                    await send_roster()
 
             elif t == "pos":
                 p = players.get(pid)
@@ -661,6 +716,7 @@ async def ws_endpoint(ws: WebSocket):
         elif phase in ("lobby", "idle"):
             async with lock:                            # ktoś wyszedł z lobby —
                 await send_lobby()                      # odśwież listę i sprawdź start
+                await send_roster()
                 await maybe_start()
 
 
