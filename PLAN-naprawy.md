@@ -55,12 +55,17 @@ Uwaga: raport przewidywał −60% ruchu, ale ta liczba zakładała też skrócen
 nazw pól. Nie zrobiłem tego — kod byłby mniej czytelny. Zmierzone: −52%.
 Wyniki (298) i tory rysowane (89) nietknięte, kopia `races.db.backup-etap3-1918`.
 
-## Etap 4 — testy i CI 👈 NASTĘPNY
-- [ ] `pytest` + testy walidatorów torów
-- [ ] Testy walidacji wejścia z Etapu 2
-- [ ] GitHub Actions
+## Etap 4 — testy i CI ✅
+- [x] `pytest` + 10 testów walidatorów torów
+- [x] 32 testy walidacji wejścia z Etapu 2
+- [x] GitHub Actions (Python 3.11 i 3.13)
 
-## Etap 5 — README ⏳
+**Zweryfikowane:** `pytest tests/ -v` → **42 passed**. `conftest.py` przekierowuje
+`RACES_DB` na plik tymczasowy przed importem, więc testy nie tykają prawdziwej bazy.
+**Nie sprawdziłem:** czy workflow faktycznie przechodzi na GitHubie — nie ma
+jeszcze zdalnego repozytorium.
+
+## Etap 5 — README 👈 NASTĘPNY
 - [ ] README z architekturą, tabelą przed/po, opisem walidatorów
 
 ## Etap 6 — podział `game.js` (duży, opcjonalny) ⏳
@@ -74,3 +79,4 @@ Wyniki (298) i tory rysowane (89) nietknięte, kopia `races.db.backup-etap3-1918
 - **Etap 1** zamknięty. SSRF był realny — potwierdzony trzema sygnałami, teraz jednym.
 - **Etap 2** zamknięty. Ranking przestał być fikcją.
 - **Etap 3** zamknięty. Ruch sieciowy o połowę mniejszy, baza o 38%.
+- **Etap 4** zamknięty. 42 testy, w tym regresje wszystkich napraw z Etapu 2.
