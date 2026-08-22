@@ -65,11 +65,41 @@ Wyniki (298) i tory rysowane (89) nietknięte, kopia `races.db.backup-etap3-1918
 **Nie sprawdziłem:** czy workflow faktycznie przechodzi na GitHubie — nie ma
 jeszcze zdalnego repozytorium.
 
-## Etap 5 — README 👈 NASTĘPNY
-- [ ] README z architekturą, tabelą przed/po, opisem walidatorów
+## Etap 5 — README ✅
+- [x] README z architekturą, tabelą przed/po, opisem walidatorów
 
-## Etap 6 — podział `game.js` (duży, opcjonalny) ⏳
+**Zweryfikowane:** każda ścieżka i komenda z README istnieje i działa.
+Stary README opisywał grę sprzed wielu zmian (spacja jako gaz, widok 2D) —
+wprowadzałby w błąd. **Brakuje zrzutów ekranu** — to jedyna rzecz, której
+nie mogę zrobić za Janka sensownie; 2-3 obrazki bardzo wzmocniłyby README.
+
+## Etap 6 — podział `game.js` ⏸️ ŚWIADOMIE ODŁOŻONY
 - [ ] net.js / physics.js / render.js / audio.js / ui.js
+
+**Dlaczego nie zrobione teraz — wynik analizy, nie brak czasu.**
+
+Sprawdziłem granice bloku audio (najbardziej samodzielnego kandydata):
+- nagłówek „===== Dźwięk silnika =====" w linii 1602 **kłamie** — zaraz po nim
+  jest generator klucza gracza i `loadSettings`, nie audio. Ślepa ekstrakcja
+  1602–2040 przeniosłaby wczytywanie ustawień do pliku audio i rozwaliła
+  kolejność startu. Prawdziwy blok to 1658–2040.
+- blok ma **37 odwołań do stanu gry**: `settings` ×14, `me` ×11, `othersById` ×3,
+  `mode` ×3, `boosting` ×2, `bodyOf` ×2, `MAX_SPEED` ×2, `K` ×2, `DRIFT_MIN` ×2,
+  `mySlip` ×1.
+
+To odwrotna sytuacja niż przy `carart.js`, który nie potrzebował z gry prawie
+niczego — i właśnie dlatego mógł go potem użyć `tuner.html`. Samo przeniesienie
+linii dałoby zależność cykliczną i kruchą zależność od kolejności `<script>`,
+czyli **plik mniejszy, ale nie rozprzęgnięty**.
+
+**Jak to zrobić dobrze:** wprowadzić jawny interfejs — np. `updateEngines()`
+przyjmuje obiekt stanu zamiast sięgać po globalne zmienne. To prawdziwa
+refaktoryzacja obejmująca 37 miejsc, a nie przeniesienie pliku. Zasługuje na
+własną sesję, przy wyłączonym tunelu, najlepiej po dopisaniu testów klienta
+(dziś testy pokrywają tylko serwer).
+
+**Ryzyko robienia tego teraz:** gra jest na żywo, grasz w nią ze znajomymi,
+a po stronie klienta nie ma żadnych testów, które złapałyby regresję.
 
 ---
 
@@ -80,3 +110,5 @@ jeszcze zdalnego repozytorium.
 - **Etap 2** zamknięty. Ranking przestał być fikcją.
 - **Etap 3** zamknięty. Ruch sieciowy o połowę mniejszy, baza o 38%.
 - **Etap 4** zamknięty. 42 testy, w tym regresje wszystkich napraw z Etapu 2.
+- **Etap 5** zamknięty. README opisuje grę, która naprawdę istnieje.
+- **Etap 6** odłożony świadomie: analiza pokazała, że tani podział byłby kosmetyką z zależnością cykliczną.
