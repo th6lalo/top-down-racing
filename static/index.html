@@ -345,7 +345,7 @@
     }
     .set-row button.mini:hover { background: #465266; }
     #engStatus { font-size: 12px; color: #8b93a7; }
-    #saveRow { display: flex; gap: 9px; align-items: flex-start; text-align: left;
+    #saveRow, #telRow { display: flex; gap: 9px; align-items: flex-start; text-align: left;
                margin: 12px auto 4px; max-width: 340px; padding: 9px 11px;
                background: #151b26; border: 1px solid #232c3b; border-radius: 10px;
                cursor: pointer; font-size: 12.5px; color: #cfd6e4; }
@@ -381,6 +381,11 @@
       <input type="checkbox" id="setSave" checked />
       <span><b>💾 Zapisuj moje wyniki</b> na tym urządzeniu<br />
       <em>Odznacz, żeby grać jako gość — wtedy grasz normalnie, ale nic nie trafia do rankingu.</em></span>
+    </label>
+    <label id="telRow">
+      <input type="checkbox" id="setTelSend" />
+      <span><b>📊 Wysyłaj telemetrię wydajności</b> po wyścigu<br />
+      <em>Pomaga namierzyć, co zacina — mierzone są klatki, ping i sprzęt, nic więcej.</em></span>
     </label>
     <button id="joinBtn">Dołącz do lobby →</button>
   </div>
@@ -512,7 +517,7 @@
   </div>
 
   <script src="carart.js?v=4"></script>
-  <script src="game.js?v=72"></script>
+  <script src="game.js?v=73"></script>
   <div id="rotate">📱↻<br>Obróć telefon poziomo,<br>żeby zagrać wygodnie</div>
 </body>
 </html>

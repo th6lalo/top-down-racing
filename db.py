@@ -48,6 +48,42 @@ def init():
                 data   TEXT    NOT NULL    -- pełny tor jako JSON
             )
         """)
+        # Telemetria wydajności — jeden wiersz na gracza na wyścig, TYLKO gdy
+        # gracz sam zaznaczył wysyłanie. Trzymamy percentyle i liczbę zacięć,
+        # nie same średnie: gracz ze średnią 55 FPS, który cztery razy spada
+        # do 12, ma fatalny odbiór, a średnia tego nie pokaże.
+        _conn.execute("""
+            CREATE TABLE IF NOT EXISTS telemetry (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts        TEXT    NOT NULL,
+                track     TEXT,             -- kontekst: pozwala korelować spadki
+                track_typ TEXT,             -- 'labirynt' / 'korytarz'
+                mosty     INTEGER,          -- ile wiaduktów miał tor
+                graczy    INTEGER,          -- ilu jechało jednocześnie
+                czas_s    REAL,             -- długość pomiaru
+                nick      TEXT,
+                klucz     TEXT,
+                karoseria TEXT,
+                fps_med   REAL,             -- mediana klatek
+                fps_p05   REAL,             -- 5. percentyl = te złe momenty
+                fps_min   REAL,
+                klatka_max REAL,            -- najgorsza klatka w ms
+                zaciec    INTEGER,          -- klatek dłuższych niż 50 ms
+                zaciec_min REAL,            -- zacięć na minutę
+                ping_med  REAL,
+                ping_p95  REAL,
+                ping_max  REAL,
+                jitter    REAL,             -- rozrzut odstępów między pakietami
+                kbps_in   REAL,
+                kbps_out  REAL,
+                jakosc_min INTEGER,         -- najniższy poziom auto-jakości
+                jakosc_sr  REAL,
+                mobil     INTEGER,
+                ekran     TEXT,
+                rdzenie   INTEGER,
+                przegladarka TEXT
+            )
+        """)
         _conn.commit()
 
 
@@ -87,6 +123,36 @@ def record(track, name, place, time_s, pid=None):
             (datetime.now().isoformat(timespec="seconds"), track, name, place, time_s, pid),
         )
         _conn.commit()
+
+
+POLA_TELEMETRII = (
+    "track", "track_typ", "mosty", "graczy", "czas_s", "nick", "klucz", "karoseria",
+    "fps_med", "fps_p05", "fps_min", "klatka_max", "zaciec", "zaciec_min",
+    "ping_med", "ping_p95", "ping_max", "jitter", "kbps_in", "kbps_out",
+    "jakosc_min", "jakosc_sr", "mobil", "ekran", "rdzenie", "przegladarka",
+)
+
+
+def save_telemetry(dane: dict):
+    """Zapisz telemetrię jednego gracza z jednego wyścigu.
+
+    Bierzemy WYŁĄCZNIE znane kolumny — cokolwiek klient dośle poza nimi, jest
+    ignorowane. Dzięki temu zepsuty albo złośliwy klient nie zaśmieci bazy.
+    """
+    wart = [dane.get(k) for k in POLA_TELEMETRII]
+    kolumny = ", ".join(POLA_TELEMETRII)
+    znaki = ", ".join("?" * len(POLA_TELEMETRII))
+    with _lock:
+        _conn.execute(
+            f"INSERT INTO telemetry (ts, {kolumny}) VALUES (?, {znaki})",
+            [datetime.now().isoformat(timespec="seconds")] + wart,
+        )
+        _conn.commit()
+
+
+def telemetry_count():
+    with _lock:
+        return _conn.execute("SELECT COUNT(*) FROM telemetry").fetchone()[0]
 
 
 def leaderboard(limit=10):

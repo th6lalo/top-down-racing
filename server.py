@@ -312,6 +312,14 @@ async def start_race(track: dict):
     await broadcast({"type": "race_start", "track": track})
 
 
+# Pola, które klient mierzy u siebie. Reszta kolumn pochodzi z serwera.
+_TEL_OD_KLIENTA = ("czas_s", "fps_med", "fps_p05", "fps_min", "klatka_max",
+                   "zaciec", "zaciec_min", "ping_med", "ping_p95", "ping_max",
+                   "jitter", "kbps_in", "kbps_out", "jakosc_min", "jakosc_sr",
+                   "mobil", "rdzenie", "ekran", "przegladarka")
+_TEL_TEKST = ("ekran", "przegladarka")
+
+
 def _liczba(v, domyslna):
     """Zamień na float tylko jeśli wynik jest skończoną liczbą. NaN i nieskończoność
     odrzucamy — inaczej trafiają do pakietu stanu i psują matematykę u wszystkich."""
@@ -650,6 +658,28 @@ async def ws_endpoint(ws: WebSocket):
                             print("[mapa] rysowana trasa odrzucona -> tor generowany", flush=True)
                             t = await next_track()
                         await start_race(t)
+
+            elif t == "telemetry":
+                # Telemetria wydajności po wyścigu — wyłącznie na życzenie gracza.
+                # Kontekst wyścigu (tor, liczba graczy) wypełnia SERWER, bo to
+                # jego fakty; od klienta bierzemy tylko jego własne pomiary.
+                p = players.get(pid)
+                if p and p.get("joined") and current_track:
+                    d = {k: _liczba(msg.get(k), None) if k not in _TEL_TEKST else
+                         (str(msg.get(k))[:80] if msg.get(k) is not None else None)
+                         for k in _TEL_OD_KLIENTA}
+                    d.update({
+                        "track": current_track.get("name"),
+                        "track_typ": "labirynt" if current_track.get("maze") else "korytarz",
+                        "mosty": int(current_track.get("bridges") or 0),
+                        "graczy": sum(1 for q in players.values() if q.get("active")),
+                        "nick": p["name"],
+                        "klucz": p.get("klucz"),
+                        "karoseria": p.get("body"),
+                    })
+                    await asyncio.to_thread(db.save_telemetry, d)
+                    print(f"[telemetria] {p['name']}: FPS med {d.get('fps_med')}, "
+                          f"zacięć {d.get('zaciec')}", flush=True)
 
             elif t == "finish":
                 async with lock:

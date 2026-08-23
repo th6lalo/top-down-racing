@@ -43,7 +43,7 @@ let lbData = [];               // dane rankingu (tabeli wyników) z serwera
 let raceStandings = [];        // kolejność dojazdów w bieżącym wyścigu
 
 // ---- Ustawienia + dźwięk silnika (Web Audio) ----
-const settings = { sound: true, sfx: true, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 900 };   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
+const settings = { sound: true, sfx: true, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, telemetriaWysylka: false, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 900 };   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
 let audioCtx = null, masterGain = null, distCurve = null, myEngine = null;
 let engineBus = null, sfxBus = null;   // osobne szyny: silnik i efekty
 let engineBuffer = null;       // wczytana próbka silnika (AudioBuffer) albo null = syntezator
@@ -513,6 +513,11 @@ function sendPos(now) {
 }
 
 // ---- Wejście do gry ----
+{ // przywróć zapamiętany stan obu przełączników na ekranie wejścia
+  const a = document.getElementById("setSave"), b = document.getElementById("setTelSend");
+  if (a) a.checked = settings.zapisujWyniki !== false;
+  if (b) b.checked = !!settings.telemetriaWysylka;
+}
 document.getElementById("joinBtn").addEventListener("click", () => {
   const name = (document.getElementById("name").value || "").trim() || "Gracz";
   const color = document.getElementById("color").value || "#ff5a5a";
@@ -525,6 +530,7 @@ document.getElementById("joinBtn").addEventListener("click", () => {
   joined = true;
   ensureAudio();                 // gest użytkownika odblokowuje dźwięk w przeglądarce
   const zapisuj = !!(document.getElementById("setSave") || {}).checked;
+  settings.telemetriaWysylka = !!(document.getElementById("setTelSend") || {}).checked;
   settings.zapisujWyniki = zapisuj; saveSettings();
   jestemGosciem = !zapisuj;
   const send = () => ws.send(JSON.stringify({
@@ -1113,6 +1119,77 @@ function drawPanele() {
   ctx.globalAlpha = 1;
 }
 
+// ---- Telemetria wydajności zbierana przez CAŁY wyścig -------------------
+// Świadomie liczymy percentyle i zacięcia, a nie same średnie: gracz ze
+// średnią 55 FPS, który cztery razy spada do 12, ma fatalny odbiór, a średnia
+// tego nie pokaże. Wysyłka jest opcjonalna i decyduje o niej gracz.
+const HITCH_MS = 50;                  // klatka dłuższa niż tyle = widoczne zacięcie
+let telRace = null;
+
+function telStart() {
+  telRace = { t0: performance.now(), probki: [], zaciec: 0, klatkaMax: 0 };
+}
+
+function telKlatka(dtMs) {
+  if (!telRace) return;
+  if (dtMs > HITCH_MS) telRace.zaciec++;
+  if (dtMs > telRace.klatkaMax) telRace.klatkaMax = dtMs;
+}
+
+function telProbka() {
+  if (!telRace) return;
+  telRace.probki.push({ fps: tel.fps, ping: tel.ping, q: quality,
+                        in: tel.kbpsIn, out: tel.kbpsOut });
+}
+
+function percentyl(tab, p) {
+  if (!tab.length) return null;
+  const s = [...tab].sort((a, b) => a - b);
+  return +s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(1);
+}
+
+function telPodsumuj() {
+  if (!telRace || telRace.probki.length < 3) return null;
+  const P = telRace.probki;
+  const fps = P.map(x => x.fps).filter(v => v > 0);
+  const ping = P.map(x => x.ping).filter(v => v > 0);
+  const jak = P.map(x => x.q);
+  const czas = (performance.now() - telRace.t0) / 1000;
+  const gapy = tel.arrGaps;
+  const srednia = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+  return {
+    czas_s: +czas.toFixed(1),
+    fps_med: percentyl(fps, 0.50),
+    fps_p05: percentyl(fps, 0.05),          // te złe momenty, nie średnia
+    fps_min: fps.length ? Math.min(...fps) : null,
+    klatka_max: +telRace.klatkaMax.toFixed(0),
+    zaciec: telRace.zaciec,
+    zaciec_min: +(telRace.zaciec / Math.max(0.1, czas / 60)).toFixed(1),
+    ping_med: percentyl(ping, 0.50),
+    ping_p95: percentyl(ping, 0.95),
+    ping_max: ping.length ? Math.max(...ping) : null,
+    jitter: gapy.length ? +stdev(gapy).toFixed(1) : null,
+    kbps_in: +(srednia(P.map(x => x.in)) || 0).toFixed(1),
+    kbps_out: +(srednia(P.map(x => x.out)) || 0).toFixed(1),
+    jakosc_min: jak.length ? Math.min(...jak) : null,
+    jakosc_sr: +(srednia(jak) || 0).toFixed(2),
+    mobil: isTouch ? 1 : 0,
+    rdzenie: navigator.hardwareConcurrency || null,
+    ekran: `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}`,
+    przegladarka: (navigator.userAgent.match(
+      /(Chrome|Firefox|Safari|Edg|OPR)\/[\d.]+/) || ["?"])[0],
+  };
+}
+
+function telWyslij() {
+  const d = telPodsumuj();
+  telRace = null;
+  if (!d || !settings.telemetriaWysylka) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "telemetry", ...d }));
+  }
+}
+
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 function drawMinimap() {
@@ -1260,6 +1337,7 @@ function drawCar(x, y, angle, color, name, mine, bodyType) {
 function roundRect(x, y, w, h, r) { roundRectOn(ctx, x, y, w, h, r); }
 
 function showWinner(name, timeS) {
+  telWyslij();                       // koniec wyścigu — wyślij, jeśli gracz chce
   winnerName = name;
   const iWon = mode === "racing" && me.name === name && finished;
   banner.classList.add("show");
@@ -1341,6 +1419,7 @@ function autoQuality(fps) {
 function updateTelemetry(now, dt) {
   tel.frames++;
   tel.worstFrame = Math.max(tel.worstFrame, dt * 1000);
+  telKlatka(dt * 1000);
   if (!tel.windowStart) tel.windowStart = now;
   const span = now - tel.windowStart;
   if (span < 500) return;                        // przeliczaj 2x/s, nie co klatkę
@@ -1355,6 +1434,7 @@ function updateTelemetry(now, dt) {
   tel.voiceOutRate = Math.round(tel.voiceOut * 1000 / span);
   tel.frames = 0; tel.states = 0; tel.bytesIn = 0; tel.bytesOut = 0;
   tel.voiceIn = 0; tel.voiceOut = 0; tel.windowStart = now;
+  telProbka();          // próbka do telemetrii wyścigu
 
   if (ws && ws.readyState === WebSocket.OPEN && now - tel.lastPingSent > 2000) {
     tel.lastPingSent = now;
@@ -1535,6 +1615,7 @@ function startRace(t) {
   const lb = document.getElementById("leaderboard");
   if (lb) lb.classList.remove("show");
   mode = "racing";
+  telStart();                        // zacznij mierzyć wydajność tego wyścigu
   hideJoin(); hideWait(); hideDrawUI(); hideLobby();
   banner.classList.remove("show");
   startCountdown();
