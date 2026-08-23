@@ -52,7 +52,11 @@ finish_order: list[int] = []  # kolejność dojazdów do mety w bieżącym wyśc
 lock = asyncio.Lock()
 
 BROADCAST_HZ = 30
-VOICE_MAX_DIST_SQ = 2200 ** 2   # dalej niż to i tak nic nie słychać — nie wysyłamy głosu
+# Górna granica przekazywania głosu. MUSI być >= maksimum suwaka „zasięg głosu"
+# u klienta (2200 px), inaczej serwer uciąłby głos, który klient chciałby jeszcze
+# słyszeć — i wyszłoby „czasem słychać, czasem nie" bez widocznej przyczyny.
+VOICE_MAX_DIST = 2200
+VOICE_MAX_DIST_SQ = VOICE_MAX_DIST ** 2
 DRAW_SECONDS = 45           # ile czasu ma rysujący
 
 
@@ -93,7 +97,10 @@ async def _send_bytes_one(pid: int, ws: WebSocket, data: bytes):
     voice_busy.add(pid)
     try:
         await ws.send_bytes(data)
-    except Exception:
+    except Exception as e:
+        # Wcześniej gracz znikał tu po cichu i nie było jak dojść, dlaczego
+        # komuś „urwało głos" — a to jedyne miejsce, gdzie odpada przez głos.
+        print(f"[głos] utracono połączenie {pid}: {type(e).__name__}", flush=True)
         connections.pop(pid, None)
         players.pop(pid, None)
     finally:
@@ -541,7 +548,11 @@ async def ws_endpoint(ws: WebSocket):
 
             teraz = time.monotonic()
             if teraz - okno >= 1.0:
-                okno, ile_tekst, ile_bin = teraz, 0, 0
+                # Licznik nadmiaru MUSI zerować się razem z oknem. Wcześniej tylko
+                # rósł, więc 40 przekroczeń rozrzuconych przez całą sesję (np. przy
+                # chwilowych skokach sieci) kończyło się rozłączeniem gracza,
+                # który niczego złego nie robił.
+                okno, ile_tekst, ile_bin, nadmiar = teraz, 0, 0, 0
 
             if raw.get("bytes") is not None:
                 ile_bin += 1

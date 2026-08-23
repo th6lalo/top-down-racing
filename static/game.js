@@ -43,7 +43,7 @@ let lbData = [];               // dane rankingu (tabeli wyników) z serwera
 let raceStandings = [];        // kolejność dojazdów w bieżącym wyścigu
 
 // ---- Ustawienia + dźwięk silnika (Web Audio) ----
-const settings = { sound: true, sfx: true, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, telemetriaWysylka: false, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 900 };   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
+const settings = { sound: true, sfx: true, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, telemetriaWysylka: false, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 1600 };   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
 let audioCtx = null, masterGain = null, distCurve = null, myEngine = null;
 let engineBus = null, sfxBus = null;   // osobne szyny: silnik i efekty
 let engineBuffer = null;       // wczytana próbka silnika (AudioBuffer) albo null = syntezator
@@ -1054,6 +1054,7 @@ function render() {
   drawBridges();           // most: cień na parterze, filary, jezdnia, barierki
   drawMarks(1);            // smugi na jezdni wiaduktu (dopiero po jej narysowaniu)
   drawCarsOnLevel(1);      // auta na moście — zasłaniają to, co pod spodem
+  drawKtoMowi();           // widać, KTO mówi — inaczej nie odróżnisz ciszy od awarii
 
   ctx.restore();
 
@@ -1188,6 +1189,28 @@ function telWyslij() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "telemetry", ...d }));
   }
+}
+
+// Kółko z mikrofonem nad autem gracza, który właśnie nadaje. Bez tego nie da
+// się odróżnić „czat nie działa" od „nikt akurat nic nie mówi" — a to była
+// główna przyczyna wrażenia, że proximity chat jest zepsuty.
+function drawKtoMowi() {
+  if (!settings.voice) return;
+  for (const id in voicePeers) {
+    if (!voicePeers[id].mowi) continue;
+    const o = othersById[id];
+    if (!o) continue;
+    const y = o.y - 30;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.arc(o.x, y, 13, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(40,120,220,.85)"; ctx.fill();
+    ctx.strokeStyle = "#cfe6ff"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "13px system-ui"; ctx.textAlign = "center";
+    ctx.fillText("🎙", o.x, y + 5);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -1774,8 +1797,8 @@ function loadSettings() {
   try { Object.assign(settings, JSON.parse(localStorage.getItem("raceSettings") || "{}")); } catch (e) {}
   // Migracja: gracze mają zapisany stary, bardzo mały zasięg głosu (240 px = ~1/5 ekranu),
   // przez co „czasem słychać, czasem nie". Podnieś go do sensownej wartości.
-  if (!settings.voiceRange || settings.voiceRange < 500) {
-    settings.voiceRange = 900;
+  if (!settings.voiceRange || settings.voiceRange < 1200) {
+    settings.voiceRange = 1600;     // 900 px to mniej niż szerokość ekranu (1100)
     saveSettings();
   }
   // Migracja: pierwsza wersja nowego silnika grała za głośno i z pulsowaniem.
@@ -2336,7 +2359,7 @@ function disableVoice() {
   voiceStatus("🎙️ Wyłączony");
 }
 
-// Odebrana ramka binarna: [2 bajty id nadawcy][PCM Int16 8 kHz].
+// Odebrana ramka binarna: [2 bajty id nadawcy][PCM Int16, VOICE_RATE].
 function onVoiceBinary(buf) {
   if (!settings.voice || !audioCtx || buf.byteLength <= 2) return;
   const id = new DataView(buf).getUint16(0, true);
@@ -2346,6 +2369,7 @@ function onVoiceBinary(buf) {
     const g = audioCtx.createGain(); g.gain.value = 0.6; g.connect(audioCtx.destination);
     vp = voicePeers[id] = { gain: g, nextTime: 0 };
   }
+  vp.mowiT = performance.now();          // do wskaźnika „ten gracz właśnie mówi"
   const buffer = audioCtx.createBuffer(1, int16.length, VOICE_RATE);
   const ch = buffer.getChannelData(0);
   for (let i = 0; i < int16.length; i++) ch[i] = int16[i] / 32768;
@@ -2355,13 +2379,34 @@ function onVoiceBinary(buf) {
   s.start(t); vp.nextTime = t + buffer.duration;
 }
 
+// Głośność w zależności od odległości. Krzywa LINIOWA (1 - d/R) była zbyt
+// ostra: przy zasięgu 900 px kolega na 450 px miał już 50%, a na 700 px — 22%.
+// Praktycznie słychać było tylko auto na pół ekranu od siebie, a mapy mają
+// do 9200 px. Teraz w bliskim kręgu jest PEŁNA głośność, a spadek zaczyna się
+// dopiero dalej i jest łagodniejszy.
+const GLOS_BLISKO = 0.45;         // do tylu % zasięgu słychać bez tłumienia
+
+function glosnoscZOdleglosci(d, R) {
+  const bliski = R * GLOS_BLISKO;
+  if (d <= bliski) return 1;
+  if (d >= R) return 0;
+  const t = (d - bliski) / (R - bliski);
+  return 1 - t * t;               // trzyma głośność dłużej, gaśnie dopiero przy krawędzi
+}
+
 function updateVoiceVolumes() {
+  const teraz = performance.now();
   for (const id in voicePeers) {
+    const vp = voicePeers[id];
     const o = othersById[id];
-    let vol = 0.6;                                   // poza wyścigiem — normalna głośność (lobby)
+    let vol = 0.6;                                   // poza wyścigiem — lobby, wszyscy równo
     if (mode === "racing") {
-      vol = o ? Math.max(0, Math.min(1, 1 - Math.hypot(o.x - me.x, o.y - me.y) / settings.voiceRange)) : 0;
+      // Kto nie jedzie (widz, gracz po mecie), nie ma wpisu w othersById.
+      // Wcześniej dostawał TWARDE ZERO, czyli widza nie było słychać w ogóle.
+      vol = o ? glosnoscZOdleglosci(Math.hypot(o.x - me.x, o.y - me.y), settings.voiceRange)
+              : 0.45;
     }
-    voicePeers[id].gain.gain.value = vol;
+    vp.gain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.08);   // bez trzasków
+    vp.mowi = teraz - (vp.mowiT || 0) < 400;
   }
 }
