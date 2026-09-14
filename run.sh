@@ -8,7 +8,13 @@ sleep 1
 
 nohup ./.venv/bin/uvicorn server:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
 disown
-sleep 4
+# Czekamy AŻ port zacznie nasłuchiwać, zamiast sprawdzać raz po sztywnych 4 s.
+# Start bywa wolniejszy (serwer generuje zawczasu pulę torów), przez co skrypt
+# potrafił skłamać "serwer nie wstał", choć wstawał sekundę później.
+for _ in $(seq 1 20); do
+  lsof -iTCP:8000 -sTCP:LISTEN -n >/dev/null 2>&1 && break
+  sleep 1
+done
 
 if lsof -iTCP:8000 -sTCP:LISTEN -n >/dev/null 2>&1; then
   echo "✅ Serwer działa:  http://localhost:8000"

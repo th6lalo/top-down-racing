@@ -56,7 +56,7 @@ const BODIES = {
             noseW: 0.66, tailW: 0.86, cab: [-0.56, 0.20], cabW: 0.84, cabH: 1.00 },
   // najszybszy na prostych, ale ślizgowy i ciężki — król długich odcinków
   muscle: { w: 38, h: 21, r: 3, wheel: [10, 6], glass: 7,  stripe: true,  roof: false,
-            mass: 1.55, spd: 1.13, acc: 0.9, grip: 0.76, turn: 0.82, radius: 18,
+            mass: 1.55, spd: 1.12, acc: 0.9, grip: 0.88, turn: 0.82, radius: 18,
             bMax: 2.2, bRe: 0.38, bPow: 2.05, height: 1.05,
             noseW: 0.86, tailW: 0.93, cab: [-0.62, 0.06], cabW: 0.86, cabH: 0.92 },
   // taran: wolny i topornie skręca, ale rozpycha wszystkich i ma wielki zapas boostu
@@ -66,7 +66,7 @@ const BODIES = {
             noseW: 0.90, tailW: 0.96, cab: [-0.80, 0.50], cabW: 0.93, cabH: 1.45 },
   // zwrotny sprinter: najlepszy w ciasnych labiryntach, bezradny w kontakcie
   kart:   { w: 26, h: 15, r: 3, wheel: [11, 6], glass: 4,  stripe: false, roof: false,
-            mass: 0.50, spd: 0.88, acc: 1.38, grip: 1.52, turn: 1.48, radius: 13,
+            mass: 0.50, spd: 0.88, acc: 1.32, grip: 1.30, turn: 1.34, radius: 13,
             bMax: 1.2, bRe: 0.62, bPow: 1.70, height: 0.85,
             noseW: 0.50, tailW: 0.78, cab: [-0.38, 0.18], cabW: 0.66, cabH: 0.42 },
 };

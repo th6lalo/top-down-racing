@@ -30,6 +30,14 @@ def _frame():
     ]
 
 
+# Promień najszerszej klasy pojazdu (van = 20 px w static/carart.js). Walidator
+# miał wcześniej 18, czyli mniej niż van — niespójność, choć NIEWIĄŻĄCA: zmierzone
+# przesmyki w labiryntach mają ~96 px od osi do ściany, więc promień auta niczego
+# tam nie ogranicza. Trzymamy tę liczbę zgodną z najszerszym autem, żeby przyszłe
+# zwężenie korytarzy nie przeszło niezauważone.
+PROMIEN_WALIDACJI = 20.0
+
+
 def reachable(t, clr=24, cell=28):
     """Czy META jest osiągalna ze STARTU (z zapasem szerokości auta)?
     Uwzględnia MOSTY: BFS biegnie po dwóch poziomach (parter/most), a bramki
@@ -620,10 +628,18 @@ def _losuj_tor():
         if kind == "maze":
             set_world(*SIZES[sz or "średnia"])
             return _maze_track(rnd)
+    # Proporcje dobrane POMIAREM, nie na oko: 40/30/30 dawało ~62% labiryntów,
+    # 45/43/12 przestrzeliło na 30%. Poniższe celuje w mniej więcej połowę.
+    # Labirynt jest ZAPASEM dla obu generatorów korytarzowych: nieudany węzeł
+    # spada na spiralę, a nieudana spirala na labirynt. Przy podziale 40/30/30
+    # labiryntów wychodziło ~62%, choć „wprost" losowano je w 30%. Skoro kaskada
+    # i tak je dosypuje, losujemy je wprost znacznie rzadziej — inaczej kart
+    # (najlepszy w ciasnych torach) wygrywa ogólnie tylko dlatego, że jego
+    # ulubiony typ toru trafia się częściej niż ulubiony typ muscle'a.
     r = rnd.random()
-    if r < 0.4:
+    if r < 0.45:
         return knot_track(rnd)                   # pętle + wiadukty, meta w centrum
-    if r < 0.7:
+    if r < 0.78:
         return spiral_track(rnd)                 # kręta spirala do centrum
     set_world(*SIZES[rnd.choice(list(SIZES))])
     return _maze_track(rnd)
@@ -771,7 +787,7 @@ def bridges_ok(pts, levels, max_bridges=2):
     return True
 
 
-def centerline_ok(t, car_r=18.0, cellpx=240):
+def centerline_ok(t, car_r=PROMIEN_WALIDACJI, cellpx=240):
     """Czy autem DA SIĘ przejechać własną linią środkową trasy?
     Idzie po trasie, przechodzi przez bramki (zmiana piętra) i sprawdza, czy w każdym
     punkcie auto mieści się między ścianami SWOJEGO piętra. To łapie pułapki, których
