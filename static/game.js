@@ -216,7 +216,12 @@ let boostAvail = 0;            // aktualna energia boostu (s) — na starcie wy�
 // mocno przycięte — żeby ominięcie wszystkich paneli nie zostawiało gracza
 // zupełnie bez boostu, a jednocześnie żeby panele naprawdę o czymś decydowały.
 const LADOWANIE_BIERNE = 0.30;   // ile z dawnego tempa zostaje (0 = tylko panele)
-const PANEL_DAJE = 0.40;         // ile zbiornika daje jeden panel
+// Panel daje STAŁĄ liczbę sekund boostu, a nie ułamek pojemności. Wcześniej
+// dawał 40% zbiornika, więc ten sam panel był wart 0,48 s dla karta i 1,12 s
+// dla vana — czyli premiował duży zbiornik zamiast jazdy po panele.
+// Teraz zbiornik decyduje o tym, ILE ŁĄCZNIE można nazbierać, a nie o tym,
+// ile się dostaje za jeden panel.
+const PANEL_SEKUND = 0.75;
 const PANEL_ODNOWA = 8.0;        // sekundy, zanim ten sam panel znów zadziała
 const padStygnie = {};           // indeks panelu -> kiedy znów będzie aktywny
 const padBlysk = {};             // indeks -> ile jeszcze trwa animacja zebrania
@@ -1076,7 +1081,7 @@ function zbierzPanele(dt) {
     if (dx * dx + dy * dy > r * r) continue;
     padStygnie[i] = teraz + PANEL_ODNOWA;
     padBlysk[i] = 0.5;
-    boostAvail = Math.min(BB.bMax, boostAvail + BB.bMax * PANEL_DAJE);
+    boostAvail = Math.min(BB.bMax, boostAvail + PANEL_SEKUND);
     if (settings.sfx && typeof blip === "function") {
       blip("triangle", 520, 1180, 0.16, 0.16);      // krótkie „ding" przy zebraniu
     }
