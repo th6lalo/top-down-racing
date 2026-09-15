@@ -371,7 +371,10 @@
 #joinHintTouch { text-align: center; font-size: 12.5px; color: #b9c2d4;
     margin: 4px 0 2px; background: rgba(255,255,255,.04); border-radius: 8px; padding: 8px 10px; }
   #joinHintTouch b { color: #e8edf6; }
-  .hint-touch { display: none; }
+.touch-only { display: none; }
+  body.touch .kbd-only { display: none; }
+  body.touch .touch-only { display: inline; }
+    .hint-touch { display: none; }
   body.touch .hint-kbd { display: none; }
   body.touch .hint-touch { display: block; }
     #saveRow, #telRow { display: flex; gap: 9px; align-items: flex-start; text-align: left;
@@ -427,7 +430,7 @@
     <div id="trackLabel">🏁 Tor</div>
     <div id="countdown"></div>
     <div id="boost">
-      <span class="label">🚀 Spacja</span>
+      <span class="label"><span class="kbd-only">🚀 Spacja</span><span class="touch-only">🚀 Boost</span></span>
       <div id="boostTrack"><div id="boostFill"></div></div>
     </div>
     <div id="ptt">🎙️ MÓWISZ</div>
@@ -548,7 +551,7 @@
   </div>
 
   <script src="carart.js?v=4"></script>
-  <script src="game.js?v=79"></script>
+  <script src="game.js?v=80"></script>
   <div id="rotate">📱↻<br>Obróć telefon poziomo,<br>żeby zagrać wygodnie</div>
 </body>
 </html>
