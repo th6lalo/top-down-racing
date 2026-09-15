@@ -14,6 +14,7 @@ Model nieautorytatywny, oparty na zaufaniu (świadomie — to hobby).
 import asyncio
 import itertools
 import json
+import os
 import math
 import random
 import ssl
@@ -52,6 +53,8 @@ finish_order: list[int] = []  # kolejność dojazdów do mety w bieżącym wyśc
 lock = asyncio.Lock()
 
 BROADCAST_HZ = 30
+PERF = os.environ.get("RACES_PERF") == "1"   # pomiar wydajności rozgłaszania
+_perf = {"ms": [], "bytes": 0, "since": None}
 # Górna granica przekazywania głosu. MUSI być >= maksimum suwaka „zasięg głosu"
 # u klienta (2200 px), inaczej serwer uciąłby głos, który klient chciałby jeszcze
 # słyszeć — i wyszłoby „czasem słychać, czasem nie" bez widocznej przyczyny.
@@ -112,10 +115,20 @@ async def broadcast(msg: dict, drop_if_busy: bool = False):
     conns = list(connections.items())
     if not conns:
         return
+    if PERF:
+        t0 = time.perf_counter()
     await asyncio.gather(
         *[_send_one(pid, ws, msg, drop_if_busy) for pid, ws in conns],
         return_exceptions=True,
     )
+    if PERF:
+        # Pomiar TYLKO gdy RACES_PERF=1 — na produkcji ta gałąź się nie wykonuje.
+        # Mierzy realny czas rozgłoszenia jednej klatki stanu do wszystkich klientów.
+        _perf["ms"].append((time.perf_counter() - t0) * 1000.0)
+        try:
+            _perf["bytes"] += len(json.dumps(msg)) * len(conns)
+        except Exception:
+            pass
 
 
 def cancel_round_tasks(reason: str = ""):
@@ -431,6 +444,27 @@ async def state_broadcaster():
                 for p in players.values() if p.get("active")
             ],
         }, drop_if_busy=True)
+
+
+@app.get("/perf")
+async def perf_stats():
+    """Statystyki rozgłaszania od ostatniego odczytu. Działa tylko z RACES_PERF=1."""
+    import statistics
+    ms = _perf["ms"]
+    now = time.monotonic()
+    okno = (now - _perf["since"]) if _perf["since"] else None
+    out = {
+        "aktywne": PERF,
+        "probek": len(ms),
+        "klientow": len(connections),
+        "okno_s": round(okno, 2) if okno else None,
+        "broadcast_ms_med": round(statistics.median(ms), 3) if ms else None,
+        "broadcast_ms_p95": round(sorted(ms)[int(len(ms)*0.95)], 3) if len(ms) > 3 else None,
+        "broadcast_ms_max": round(max(ms), 3) if ms else None,
+        "kB_s": round(_perf["bytes"] / 1024 / okno, 1) if okno else None,
+    }
+    _perf["ms"] = []; _perf["bytes"] = 0; _perf["since"] = now
+    return JSONResponse(out)
 
 
 @app.get("/track")
