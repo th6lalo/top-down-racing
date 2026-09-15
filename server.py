@@ -332,6 +332,16 @@ async def start_race(track: dict):
             p["active"] = False
     await send_roster()          # świeży skład zanim polecą pakiety stanu
     await broadcast({"type": "race_start", "track": track})
+    # Osobisty rekord to dana PER GRACZ, więc wysyłamy osobno do każdego.
+    tname = track.get("name")
+    for opid, ows in list(connections.items()):
+        pl = players.get(opid)
+        if pl and pl.get("joined") and pl.get("klucz"):
+            best = db.best_time(pl["klucz"], tname)
+            try:
+                await ows.send_json({"type": "record_info", "best": best})
+            except Exception:
+                pass
 
 
 # Pola, które klient mierzy u siebie. Reszta kolumn pochodzi z serwera.
@@ -741,12 +751,24 @@ async def ws_endpoint(ws: WebSocket):
                         place = len(finish_order)
                         elapsed = round(time.monotonic() - race_started_at, 2)
                         tname = current_track.get("name") if current_track else None
+                        nowy_rekord, poprzedni = False, None
                         if not p.get("gosc") and p.get("klucz"):
                             db.record(tname, p["name"], place, elapsed, p["klucz"])
+                            nowy_rekord, poprzedni = db.update_record(
+                                p["klucz"], tname, p["name"], elapsed)
                         else:
                             print(f"[gość] {p['name']} — wynik NIE zapisany", flush=True)
                         await broadcast({"type": "finished", "name": p["name"],
                                          "place": place, "time": elapsed})
+                        # Rekord to dana PRYWATNA — tylko ten gracz ma zobaczyć „nowy rekord".
+                        ows = connections.get(pid)
+                        if ows is not None:
+                            try:
+                                await ows.send_json({"type": "record_result",
+                                                     "rekord": nowy_rekord,
+                                                     "czas": elapsed, "poprzedni": poprzedni})
+                            except Exception:
+                                pass
                         if place == 1:
                             winner = {"id": pid, "name": p["name"]}
                             await broadcast({"type": "winner", **winner, "time": elapsed})

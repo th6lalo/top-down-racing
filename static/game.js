@@ -479,6 +479,21 @@ function connect() {
         raceStandings.push({ name: msg.name, place: msg.place, time: msg.time });
         showToast(`🏁 ${msg.name} — ${msg.place}. miejsce · ${msg.time}s`);
         break;
+      case "record_info":
+        // Rekord na tym torze — pokazany na starcie, żeby było o co grać.
+        mojRekord = msg.best;
+        showToast(msg.best != null
+          ? `⏱️ Twój rekord na tym torze: ${msg.best.toFixed(1)}s`
+          : "✨ Nowy tor — ustaw pierwszy rekord!");
+        break;
+      case "record_result":
+        // Po mecie: prywatna informacja, czy to był nowy rekord.
+        if (msg.rekord) {
+          showToast(msg.poprzedni != null
+            ? `🏆 NOWY REKORD! ${msg.czas.toFixed(1)}s (było ${msg.poprzedni.toFixed(1)}s)`
+            : `🏆 NOWY REKORD! ${msg.czas.toFixed(1)}s`);
+        }
+        break;
       case "leaderboard":
         lbData = msg.top || [];
         renderLeaderboard();
@@ -554,6 +569,7 @@ document.getElementById("joinBtn").addEventListener("click", () => {
 let chosenBody = "sport";
 let paintAllPreviews = null;
 let rosterById = {};        // dane stałe graczy — przychodzą przy zmianie składu
+let mojRekord = null;       // mój najlepszy czas na bieżącym torze (albo null)
 let jestemGosciem = true;   // dopóki nie dołączy — zakładamy tryb gościa
 {
   const opts = [...document.querySelectorAll(".body-opt")];

@@ -84,7 +84,50 @@ def init():
                 przegladarka TEXT
             )
         """)
+        # Osobiste rekordy: najlepszy czas gracza (po trwałym kluczu) na danym torze.
+        # UWAGA: nazwy torów się powtarzają (losowane z puli), więc rekord jest
+        # per NAZWA, nie per konkretny układ — świadome uproszczenie, wystarczające
+        # dla gry ze znajomymi.
+        _conn.execute("""
+            CREATE TABLE IF NOT EXISTS records (
+                klucz  TEXT NOT NULL,
+                track  TEXT NOT NULL,
+                nick   TEXT,
+                best_s REAL NOT NULL,
+                ts     TEXT NOT NULL,
+                PRIMARY KEY (klucz, track)
+            )
+        """)
         _conn.commit()
+
+
+def best_time(klucz, track):
+    """Najlepszy czas gracza na torze o tej nazwie, albo None (nowy tor)."""
+    if not klucz or not track:
+        return None
+    with _lock:
+        r = _conn.execute("SELECT best_s FROM records WHERE klucz=? AND track=?",
+                          (klucz, track)).fetchone()
+    return r["best_s"] if r else None
+
+
+def update_record(klucz, track, nick, time_s):
+    """Zapisz czas jeśli lepszy. Zwraca (czy_rekord, poprzedni_czas_lub_None)."""
+    if not klucz or not track:
+        return False, None
+    with _lock:
+        r = _conn.execute("SELECT best_s FROM records WHERE klucz=? AND track=?",
+                          (klucz, track)).fetchone()
+        poprzedni = r["best_s"] if r else None
+        if poprzedni is not None and time_s >= poprzedni:
+            return False, poprzedni
+        _conn.execute("""
+            INSERT INTO records (klucz, track, nick, best_s, ts) VALUES (?,?,?,?,?)
+            ON CONFLICT(klucz, track) DO UPDATE SET best_s=excluded.best_s,
+                nick=excluded.nick, ts=excluded.ts
+        """, (klucz, track, nick, time_s, datetime.now().isoformat(timespec="seconds")))
+        _conn.commit()
+    return True, poprzedni
 
 
 # Ile torów trzymamy. Każdy to pełny JSON (nawet 68 KB), a odtwarzany bywa
