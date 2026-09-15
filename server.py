@@ -44,7 +44,9 @@ phase = "idle"              # "idle" | "drawing" | "racing"
 current_track: dict | None = None
 drawer_id: int | None = None
 winner: dict | None = None
-drawn_next = True           # czy następna runda ma być rysowana (naprzemienność)
+drawn_next = False          # PIERWSZA runda nowej sesji to WYŚCIG, nie rysowanie —
+                            # nowy gracz najpierw musi zrozumieć, że to gra wyścigowa
+                            # (potem naprzemiennie: wyścig, rysowanie, wyścig...)
 _draw_task: asyncio.Task | None = None
 _lobby_task: asyncio.Task | None = None
 race_id = 0                 # „pieczątka" rundy — zadania ze starej rundy są ignorowane
@@ -784,7 +786,7 @@ async def ws_endpoint(ws: WebSocket):
             phase = "idle"
             winner = None
             drawer_id = None
-            drawn_next = True          # świeża sesja zaczyna od rysowanej mapy
+            drawn_next = False         # świeża sesja zaczyna od WYŚCIGU (patrz komentarz u góry)
         elif was_drawer and phase == "drawing":
             async with lock:
                 if phase == "drawing":

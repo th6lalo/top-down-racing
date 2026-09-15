@@ -345,7 +345,10 @@
     }
     .set-row button.mini:hover { background: #465266; }
     #engStatus { font-size: 12px; color: #8b93a7; }
-    #saveRow, #telRow { display: flex; gap: 9px; align-items: flex-start; text-align: left;
+    #joinHint { text-align: center; font-size: 13px; color: #b9c2d4; margin: 4px 0 2px;
+            background: rgba(255,255,255,.04); border-radius: 8px; padding: 8px 10px; }
+  #joinHint b { color: #e8edf6; }
+  #saveRow, #telRow { display: flex; gap: 9px; align-items: flex-start; text-align: left;
                margin: 12px auto 4px; max-width: 340px; padding: 9px 11px;
                background: #151b26; border: 1px solid #232c3b; border-radius: 10px;
                cursor: pointer; font-size: 12.5px; color: #cfd6e4; }
@@ -387,6 +390,7 @@
       <span><b>📊 Wysyłaj telemetrię wydajności</b> po wyścigu<br />
       <em>Pomaga namierzyć, co zacina — mierzone są klatki, ping i sprzęt, nic więcej.</em></span>
     </label>
+    <div id="joinHint">🎮 <b>W</b>/↑ gaz · <b>S</b>/↓ hamulec · <b>A D</b>/← → skręt · <b>spacja</b> boost · <b>V</b> mów</div>
     <button id="joinBtn">Dołącz do lobby →</button>
   </div>
 
@@ -517,7 +521,7 @@
   </div>
 
   <script src="carart.js?v=4"></script>
-  <script src="game.js?v=75"></script>
+  <script src="game.js?v=76"></script>
   <div id="rotate">📱↻<br>Obróć telefon poziomo,<br>żeby zagrać wygodnie</div>
 </body>
 </html>
