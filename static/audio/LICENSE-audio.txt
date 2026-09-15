@@ -1,0 +1,5 @@
+engine.wav — pętla dźwięku silnika.
+Źródło: "Racing Car Engine Sound Loops", OpenGameArt.org — licencja CC0 1.0
+(domena publiczna). Utworzone przez wycięcie i zapętlenie materiału public
+domain z pdsounds.org. CC0 nie wymaga podawania autora; podajemy z szacunku.
+Pobrano: 2026-09-15. Plik loop_2.wav z zestawu (najczystszy profil basu).

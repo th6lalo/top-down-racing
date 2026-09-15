@@ -1867,6 +1867,28 @@ function ensureAudio() {
   distCurve = makeDistCurve(3.2);   // było 16 — brzmiało jak przester, nie silnik
   myEngine = makeEngine(me.body || "sport");
   squeal = makeSqueal();
+  wczytajDomyslnySilnik();     // podmień syntezator na prawdziwe nagranie, gdy dojdzie
+}
+
+// Domyślny silnik = NAGRANIE (CC0), nie syntezator. Pomiar widma pokazał, że
+// oscylatory dawały 73% energii w paśmie 1-5 kHz (brzęczyk drażniący ucho),
+// a nagranie ma ~90% w basie <200 Hz — jak prawdziwy silnik. Wczytujemy je raz,
+// asynchronicznie; do czasu wyścigu jest gotowe (gain silnika i tak startuje od 0).
+// Gdyby fetch/dekodowanie padło, zostaje syntezator — gra nie traci dźwięku.
+let silnikWczytany = false;
+async function wczytajDomyslnySilnik() {
+  if (silnikWczytany || engineBuffer || !audioCtx) return;
+  silnikWczytany = true;
+  try {
+    const r = await fetch("audio/engine.wav?v=1");
+    if (!r.ok) throw new Error("http " + r.status);
+    engineBuffer = await audioCtx.decodeAudioData(await r.arrayBuffer());
+    rebuildEngines();
+    engineStatus("🔊 Silnik: nagranie (CC0)");
+  } catch (e) {
+    silnikWczytany = false;       // pozwól spróbować ponownie przy następnym ensureAudio
+    engineStatus("🎛️ Syntezator (nie udało się wczytać nagrania)");
+  }
 }
 
 // Krzywa dystorsji (tanh) — dodaje harmoniczne, growl silnika.
