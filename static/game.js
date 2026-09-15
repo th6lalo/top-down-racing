@@ -1238,7 +1238,7 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 function drawMinimap() {
   if (!miniBg) return;
-  const mx = canvas.width - miniMW - 12, my = 12, s = miniS;
+  const mx = canvas.width - miniMW - 12, my = canvas.height - miniMH - 12, s = miniS;  // prawy DOLNY róg
   ctx.save();
   ctx.globalAlpha = 0.9;
   ctx.drawImage(miniBg, mx, my);                    // statyczne tło (raz zbudowane) — bez rysowania ścian co klatkę
@@ -1553,11 +1553,13 @@ function enterLobby(list) {
     btn.textContent = myReady ? "⏳ Czekam na resztę (kliknij, by cofnąć)" : "✅ Jestem gotowy";
     btn.classList.toggle("on", myReady);
   }
-  const sub = document.getElementById("lobbySub");
-  if (sub) {
-    const gotowi = list.filter(p => p.ready).length;
-    sub.textContent = `Gotowi: ${gotowi}/${list.length} — wyścig ruszy, gdy wszyscy będą gotowi`;
-  }
+  const gotowi = list.filter(p => p.ready).length;
+  const fill = document.getElementById("lobbyProgressFill");
+  const ptxt = document.getElementById("lobbyProgressText");
+  if (fill) fill.style.width = (list.length ? 100 * gotowi / list.length : 0) + "%";
+  if (ptxt) ptxt.textContent = gotowi === list.length && list.length
+    ? `Wszyscy gotowi (${gotowi}/${list.length}) — start!`
+    : `Gotowi ${gotowi}/${list.length}`;
   renderLobbyList(list);
 }
 
@@ -1567,7 +1569,7 @@ function renderLobbyList(list) {
   box.innerHTML = "";
   for (const p of list) {
     const row = document.createElement("div");
-    row.className = "lp-row";
+    row.className = "lp-row" + (p.ready ? " is-ready" : "");
     const cv = document.createElement("canvas");
     cv.style.width = "74px"; cv.style.height = "42px";
     const { g: c2, w, h, dpr } = hidpiCtx(cv, 74, 42);
@@ -1583,7 +1585,7 @@ function renderLobbyList(list) {
     nm.textContent = p.name + (p.id === myId ? " (Ty)" : "");
     const rd = document.createElement("span");
     rd.className = "lp-ready " + (p.ready ? "yes" : "no");
-    rd.textContent = p.ready ? "✅ Gotowy" : "⏳ Niegotowy";
+    rd.textContent = p.ready ? "✅ Gotowy" : "⏳ Czeka";
     row.append(cv, nm, rd);
     box.appendChild(row);
   }

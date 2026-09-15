@@ -18,6 +18,11 @@
       min-height: 100vh;
     }
     h1 { font-size: 20px; margin: 12px 0 4px; letter-spacing: .5px; }
+    /* W GRZE liczy się każdy piksel planszy — chowamy naglowek i dajemy canvas
+       pelna szerokosc/wysokosc okna (na kazdym ekranie, nie tylko telefonie). */
+    body.playing h1, body.playing #hint { display: none; }
+    body.playing { justify-content: center; }
+    body.playing #c { max-width: 100vw; max-height: 100vh; border-radius: 0; }
     #hint { font-size: 13px; color: #8b93a7; margin-bottom: 8px; }
 
     /* Ekran wejścia */
@@ -235,30 +240,48 @@
     }
     #lobby.show { display: flex; }
     .lobby-card {
-      background: #161b26; border: 1px solid #2b3446; border-radius: 16px;
-      width: min(520px, 92%); max-height: 86%; overflow: auto; padding: 22px 24px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.55);
+      background: linear-gradient(160deg, #1a2130, #12161f);
+      border: 1px solid #2f3a4f; border-radius: 18px;
+      width: min(540px, 94%); max-height: 88%; overflow: auto; padding: 22px 24px;
+      box-shadow: 0 24px 70px rgba(0,0,0,.6);
     }
-    .lobby-card h2 { margin: 0 0 4px; font-size: 24px; }
-    .lobby-card .sub { margin: 0 0 16px; font-size: 13px; color: #8b93a7; }
+    .lobby-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+    .lobby-card h2 { margin: 0; font-size: 26px; letter-spacing: .5px; }
+    .lobby-card .sub { font-size: 12.5px; color: #8b93a7; text-align: right; }
+    /* pasek postępu gotowości — od razu widać, na kogo się czeka */
+    #lobbyProgress {
+      position: relative; height: 30px; background: #0e1420; border: 1px solid #2b3446;
+      border-radius: 9px; margin-bottom: 16px; overflow: hidden;
+    }
+    #lobbyProgressFill {
+      position: absolute; inset: 0 auto 0 0; width: 0%;
+      background: linear-gradient(90deg, #2f9e5a, #4fd08a); transition: width .35s ease;
+    }
+    #lobbyProgressText {
+      position: relative; display: block; line-height: 30px; text-align: center;
+      font-weight: 800; font-size: 13px; color: #eaf2ff; text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    }
     .lp-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 8px 10px; border-top: 1px solid #232c3b;
+      display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+      padding: 9px 12px; background: #1b2333; border: 1px solid #29344a; border-radius: 11px;
     }
-    .lp-row:first-child { border-top: none; }
+    .lp-row.is-ready { border-color: #2f7a4f; background: #17281f; }
     .lp-row canvas { flex: none; }
     .lp-name { flex: 1; font-weight: 700; font-size: 15px; overflow: hidden;
                text-overflow: ellipsis; white-space: nowrap; }
     .lp-me { color: #8fb9ff; }
-    .lp-ready { font-size: 13px; font-weight: 700; white-space: nowrap; }
-    .lp-ready.yes { color: #4fd08a; }
-    .lp-ready.no { color: #7f8a9c; }
+    .lp-ready { font-size: 12px; font-weight: 800; white-space: nowrap;
+                padding: 5px 12px; border-radius: 999px; }
+    .lp-ready.yes { background: rgba(79,208,138,.18); color: #6ee0a2; }
+    .lp-ready.no  { background: rgba(127,138,156,.14); color: #9aa4b4; }
     #readyBtn {
-      margin-top: 18px; width: 100%; background: #37c26a; color: #06210f; border: none;
-      padding: 12px; border-radius: 10px; font-weight: 800; font-size: 16px; cursor: pointer;
+      margin-top: 6px; width: 100%; background: #37c26a; color: #06210f; border: none;
+      padding: 14px; border-radius: 12px; font-weight: 800; font-size: 16px; cursor: pointer;
+      transition: background .15s, transform .05s;
     }
     #readyBtn:hover { background: #49d67c; }
-    #readyBtn.on { background: #384252; color: #dfe6f2; }
+    #readyBtn:active { transform: translateY(1px); }
+    #readyBtn.on { background: #2b3648; color: #dfe6f2; }
     /* Panel rysowania trasy */
     #drawUI {
       position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
@@ -450,8 +473,11 @@
     <div id="waitOverlay"></div>
     <div id="lobby">
       <div class="lobby-card">
-        <h2>🏁 Lobby</h2>
-        <p class="sub" id="lobbySub">Wyścig ruszy, gdy wszyscy klikną „Gotowy"</p>
+        <div class="lobby-head">
+          <h2>🏁 Poczekalnia</h2>
+          <span class="sub" id="lobbySub">Wyścig ruszy, gdy wszyscy będą gotowi</span>
+        </div>
+        <div id="lobbyProgress"><div id="lobbyProgressFill"></div><span id="lobbyProgressText">Gotowi 0/0</span></div>
         <div id="lobbyList"></div>
         <button id="readyBtn">✅ Jestem gotowy</button>
       </div>
@@ -551,7 +577,7 @@
   </div>
 
   <script src="carart.js?v=4"></script>
-  <script src="game.js?v=80"></script>
+  <script src="game.js?v=82"></script>
   <div id="rotate">📱↻<br>Obróć telefon poziomo,<br>żeby zagrać wygodnie</div>
 </body>
 </html>
