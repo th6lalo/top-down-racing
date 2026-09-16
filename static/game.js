@@ -43,7 +43,7 @@ let lbData = [];               // dane rankingu (tabeli wyników) z serwera
 let raceStandings = [];        // kolejność dojazdów w bieżącym wyścigu
 
 // ---- Ustawienia + dźwięk silnika (Web Audio) ----
-const settings = { sound: true, sfx: true, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, telemetriaWysylka: false, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 1600 };   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
+const settings = { sound: true, sfx: true, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, telemetriaWysylka: false, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 1600, voiceMode: "ptt", voiceKey: "v" };  // ptt=na przycisk, open=zawsze   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
 let audioCtx = null, masterGain = null, distCurve = null, myEngine = null;
 let engineBus = null, sfxBus = null;   // osobne szyny: silnik i efekty
 let engineBuffer = null;       // wczytana próbka silnika (AudioBuffer) albo null = syntezator
@@ -246,7 +246,9 @@ function typingInField(e) {
 addEventListener("keydown", (e) => {
   if (typingInField(e)) return;  // nie przechwytuj klawiszy podczas wpisywania nicku
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (GAME_KEYS.includes(k)) {
+  // Klawisz mówienia jest wybierany przez gracza, więc łapiemy go osobno —
+  // GAME_KEYS to lista stała, a voiceKey może być dowolny.
+  if (GAME_KEYS.includes(k) || k === settings.voiceKey) {
     keys[k] = true;
     e.preventDefault();  // m.in. spacja nie scrolluje strony
   }
@@ -277,18 +279,23 @@ if (isTouch) document.body.classList.add("touch");
   // o dotyku. Obsługa wielodotyku: każdy palec pamiętany osobno (gaz + skręt naraz).
   const held = new Map();
   for (const btn of document.querySelectorAll(".tbtn")) {
-    const k = btn.dataset.key;
+    // Przycisk mikrofonu używa AKTUALNIE wybranego klawisza mówienia, nie stałego
+    // „v" — inaczej po zmianie klawisza dotykowy mikrofon nadawałby na złą flagę.
+    const jestMic = btn.classList.contains("tb-mic");
+    const klawisz = () => jestMic ? settings.voiceKey : btn.dataset.key;
     const down = (e) => {
       e.preventDefault();
+      const k = klawisz();
       held.set(e.pointerId, k);
       keys[k] = true;
       btn.classList.add("on");
-      if (k === "v" || k === " ") ensureAudio();   // gest odblokowuje dźwięk
+      if (jestMic || k === " ") ensureAudio();   // gest odblokowuje dźwięk
     };
     const up = (e) => {
       e.preventDefault();
+      const k = held.get(e.pointerId);
       held.delete(e.pointerId);
-      keys[k] = false;
+      if (k) keys[k] = false;
       btn.classList.remove("on");
     };
     btn.addEventListener("pointerdown", down);
@@ -674,7 +681,8 @@ function loop(now) {
   updateVoiceVolumes();
   // wskaźnik „mówisz" (push-to-talk)
   const pttEl = document.getElementById("ptt");
-  if (pttEl) pttEl.classList.toggle("show", !!(settings.voice && keys.v));
+  if (pttEl) pttEl.classList.toggle("show",
+    !!(settings.voice && (settings.voiceMode === "open" || keys[settings.voiceKey])));
   updateTelemetry(now, dt);
   // pasek boostu
   if (boostBar) {
@@ -2275,6 +2283,10 @@ function useSynthEngine() {
     if ($("setVoice")) $("setVoice").checked = settings.voice;
     if ($("setRange")) $("setRange").checked = settings.showRange;
     if ($("setVoiceRange")) $("setVoiceRange").value = settings.voiceRange;
+    if ($("setVoiceMode")) $("setVoiceMode").value = settings.voiceMode || "ptt";
+    if ($("setVoiceKey")) $("setVoiceKey").textContent = etykietaKlawisza(settings.voiceKey);
+    if ($("voiceKeyRow")) $("voiceKeyRow").style.display =
+      (settings.voiceMode === "open") ? "none" : "";  // klawisz nieistotny w trybie zawsze-wł.
     if ($("setTel")) $("setTel").checked = !!settings.telemetry;
   }
   syncUI();
@@ -2341,6 +2353,37 @@ function useSynthEngine() {
   if ($("setVoiceRange")) $("setVoiceRange").addEventListener("input", (e) => {
     settings.voiceRange = parseInt(e.target.value, 10); saveSettings();
   });
+  if ($("setVoiceMode")) $("setVoiceMode").addEventListener("change", (e) => {
+    settings.voiceMode = e.target.value; saveSettings();
+    if ($("voiceKeyRow")) $("voiceKeyRow").style.display =
+      (settings.voiceMode === "open") ? "none" : "";
+    if (settings.voice) voiceStatus(settings.voiceMode === "open"
+      ? "🎙️ Mikrofon nadaje cały czas"
+      : `🎙️ Trzymaj [${etykietaKlawisza(settings.voiceKey)}], żeby mówić`);
+  });
+  // Rebind klawisza mówienia: kliknij, potem wciśnij dowolny klawisz.
+  let nasluchKlawisza = false;
+  if ($("setVoiceKey")) $("setVoiceKey").addEventListener("click", () => {
+    nasluchKlawisza = true;
+    $("setVoiceKey").textContent = "naciśnij klawisz…";
+  });
+  addEventListener("keydown", (e) => {
+    if (!nasluchKlawisza) return;
+    e.preventDefault(); e.stopPropagation();
+    const k = e.key === " " ? " " : (e.key.length === 1 ? e.key.toLowerCase() : e.key);
+    nasluchKlawisza = false;
+    // Klawisze jazdy są zajęte — nie pozwól ich przypisać, bo mówienie zablokuje sterowanie.
+    const zajete = ["w","a","s","d"," ","arrowup","arrowdown","arrowleft","arrowright"];
+    if (zajete.includes(k.toLowerCase && k.toLowerCase())) {
+      $("setVoiceKey").textContent = etykietaKlawisza(settings.voiceKey);
+      voiceStatus("⚠️ Ten klawisz jest zajęty przez jazdę — wybierz inny");
+      return;
+    }
+    settings.voiceKey = k; saveSettings();
+    $("setVoiceKey").textContent = etykietaKlawisza(k);
+    if (settings.voice && settings.voiceMode !== "open")
+      voiceStatus(`🎙️ Trzymaj [${etykietaKlawisza(k)}], żeby mówić`);
+  }, true);  // capture: łapiemy zanim zwykły handler jazdy zadziała
   if ($("setTel")) $("setTel").addEventListener("change", (e) => {
     settings.telemetry = e.target.checked; saveSettings();
     document.getElementById("telemetry").classList.toggle("show", settings.telemetry);
@@ -2355,6 +2398,11 @@ let localStream = null, micProc = null, micSink = null;
 let vadHang = 0;                  // „ogon" — dosyłaj chwilę po puszczeniu V (nie ucinaj końcówek)
 const voicePeers = {};            // id -> {gain, nextTime}
 
+function etykietaKlawisza(k) {
+  if (k === " ") return "Spacja";
+  if (k && k.length === 1) return k.toUpperCase();
+  return k || "?";
+}
 function voiceStatus(t) { const el = document.getElementById("voiceStatus"); if (el) el.textContent = t; }
 
 async function enableVoice() {
@@ -2376,10 +2424,15 @@ async function enableVoice() {
   const ratio = audioCtx.sampleRate / VOICE_RATE;
   micProc.onaudioprocess = (e) => {
     if (!settings.voice || !ws || ws.readyState !== WebSocket.OPEN) return;
-    // PUSH-TO-TALK: nadajesz tylko gdy trzymasz V (+ krótki ogon, by nie ciąć końcówek).
-    if (keys.v) vadHang = 6;
-    else if (vadHang > 0) vadHang--;
-    else return;
+    // Tryb "open" = mikrofon zawsze nadaje. Tryb "ptt" = tylko gdy trzymasz
+    // wybrany klawisz (+ krótki ogon, by nie ciąć końcówek zdań).
+    if (settings.voiceMode === "open") {
+      vadHang = 6;
+    } else if (keys[settings.voiceKey]) {
+      vadHang = 6;
+    } else if (vadHang > 0) {
+      vadHang--;
+    } else return;
     const inp = e.inputBuffer.getChannelData(0);
     const outLen = Math.floor(inp.length / ratio);
     const int16 = new Int16Array(outLen);
@@ -2392,7 +2445,9 @@ async function enableVoice() {
     tel.bytesOut += int16.buffer.byteLength; tel.voiceOut++;
     ws.send(int16.buffer);                                      // binarnie (bez base64/JSON)
   };
-  voiceStatus("🎙️ Włączony — trzymaj V, żeby mówić");
+  voiceStatus(settings.voiceMode === "open"
+    ? "🎙️ Włączony — mikrofon nadaje cały czas"
+    : `🎙️ Włączony — trzymaj [${etykietaKlawisza(settings.voiceKey)}], żeby mówić`);
 }
 
 function disableVoice() {
