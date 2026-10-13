@@ -189,6 +189,6 @@ WebSocket. No game engine, no frontend framework, no build step.
 
 ## Licence
 
-Code: [MIT](LICENSE).
+Code: **all rights reserved** — see [LICENSE](LICENSE). Viewable for evaluation; reuse not permitted.
 Vehicle sprites: [Kenney Racing Pack](https://kenney.nl/assets/racing-pack) — CC0.
 Engine sound: [OpenGameArt racing loops](https://opengameart.org/content/racing-car-engine-sound-loops) — CC0.
