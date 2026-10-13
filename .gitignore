@@ -16,3 +16,12 @@ nohup.out
 
 # katalog roboczy — nie należy do projektu
 scratchpad/
+
+# pliki procesu (robocze notatki, raporty, prompty) — zostają lokalnie, nie w publicznym repo
+OCENA-zespolu.md
+PLAN-naprawy.md
+PLAN-realizacji.md
+PROMPT-*.md
+RAPORT-*.md
+JAK-URUCHOMIC.md
+scratchpad/

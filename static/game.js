@@ -43,7 +43,7 @@ let lbData = [];               // dane rankingu (tabeli wyników) z serwera
 let raceStandings = [];        // kolejność dojazdów w bieżącym wyścigu
 
 // ---- Ustawienia + dźwięk silnika (Web Audio) ----
-const settings = { sound: true, sfx: true, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, telemetriaWysylka: false, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 1600, voiceMode: "ptt", voiceKey: "v" };  // ptt=na przycisk, open=zawsze   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
+const settings = { sound: false, sfx: false, engineVol: 0.45, sfxVol: 0.7, cichszySilnik: false, grafikiAut: true, zapisujWyniki: true, telemetriaWysylka: false, hearOthers: false, volume: 0.5, pitch: 1.0, voice: false, showRange: true, voiceRange: 1600, voiceMode: "ptt", voiceKey: "v" };  // ptt=na przycisk, open=zawsze   // domyślnie ~4 długości ekranu — na dużych mapach 240 px to było prawie nic
 let audioCtx = null, masterGain = null, distCurve = null, myEngine = null;
 let engineBus = null, sfxBus = null;   // osobne szyny: silnik i efekty
 let engineBuffer = null;       // wczytana próbka silnika (AudioBuffer) albo null = syntezator
@@ -316,7 +316,7 @@ function applyTrack(t) {
   clearMarks();                      // nowy tor zaczyna się czystym asfaltem
   for (const k in padStygnie) delete padStygnie[k];
   for (const k in padBlysk) delete padBlysk[k];
-  if (trackLabel) trackLabel.textContent = "🏁 " + (t.name || "Tor");
+  if (trackLabel) trackLabel.textContent = (t.name || "Tor");
   runsCache = null;                  // przelicz odcinki mostów przy nowym torze
   buildMinimap();                    // przelicz statyczne tło minimapy raz (nie co klatkę)
 }
@@ -484,21 +484,21 @@ function connect() {
       case "finished":
         if (!joined) break;
         raceStandings.push({ name: msg.name, place: msg.place, time: msg.time });
-        showToast(`🏁 ${msg.name} — ${msg.place}. miejsce · ${msg.time}s`);
+        showToast(`${msg.name} — ${msg.place}. miejsce · ${msg.time}s`);
         break;
       case "record_info":
         // Rekord na tym torze — pokazany na starcie, żeby było o co grać.
         mojRekord = msg.best;
         showToast(msg.best != null
           ? `⏱️ Twój rekord na tym torze: ${msg.best.toFixed(1)}s`
-          : "✨ Nowy tor — ustaw pierwszy rekord!");
+          : "Nowy tor — ustaw pierwszy rekord");
         break;
       case "record_result":
         // Po mecie: prywatna informacja, czy to był nowy rekord.
         if (msg.rekord) {
           showToast(msg.poprzedni != null
-            ? `🏆 NOWY REKORD! ${msg.czas.toFixed(1)}s (było ${msg.poprzedni.toFixed(1)}s)`
-            : `🏆 NOWY REKORD! ${msg.czas.toFixed(1)}s`);
+            ? `Nowy rekord: ${msg.czas.toFixed(1)}s (było ${msg.poprzedni.toFixed(1)}s)`
+            : `Nowy rekord: ${msg.czas.toFixed(1)}s`);
         }
         break;
       case "leaderboard":
@@ -1236,7 +1236,6 @@ function drawKtoMowi() {
     ctx.fillStyle = "rgba(40,120,220,.85)"; ctx.fill();
     ctx.strokeStyle = "#cfe6ff"; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.font = "13px system-ui"; ctx.textAlign = "center";
-    ctx.fillText("🎙", o.x, y + 5);
     ctx.restore();
   }
   ctx.globalAlpha = 1;
@@ -1393,11 +1392,11 @@ function showWinner(name, timeS) {
   winnerName = name;
   const iWon = mode === "racing" && me.name === name && finished;
   banner.classList.add("show");
-  bannerBig.textContent = iWon ? "🏆 Wygrałeś!" : "🏁 Koniec wyścigu";
+  bannerBig.textContent = iWon ? "Wygrałeś!" : "Koniec wyścigu";
   const t = timeS != null ? ` · ${timeS}s` : "";
   bannerSub.textContent = (iWon ? "Pierwszy na mecie!" : `Wygrywa: ${name}`) + t;
   const rb = document.getElementById("rematchBtn");
-  if (rb) rb.textContent = "🏁 Wróć do lobby";
+  if (rb) rb.textContent = "Wróć do lobby";
   const lb = document.getElementById("leaderboard");   // pokaż tabelę po wyścigu
   if (lb) lb.classList.add("show");
 }
@@ -1412,8 +1411,8 @@ function renderLeaderboard() {
   const nota = document.getElementById("lbNote");
   if (nota) {
     nota.textContent = jestemGosciem
-      ? "👤 Grasz jako gość — Twoje wyniki NIE są zapisywane."
-      : "💾 Twoje wyniki zapisują się na tym urządzeniu.";
+      ? "Grasz jako gość — Twoje wyniki NIE są zapisywane."
+      : "Twoje wyniki zapisują się na tym urządzeniu.";
     nota.className = "lb-note " + (jestemGosciem ? "gosc" : "zapis");
   }
   const el = document.getElementById("lbBody");
@@ -1426,7 +1425,7 @@ function renderLeaderboard() {
     <div class="lb-row">
       <span class="lb-rank">${i + 1}</span>
       <span class="lb-name">${escapeHtml(r.name)}</span>
-      <span class="lb-wins">${r.wins}🏆</span>
+      <span class="lb-wins">${r.wins}</span>
       <span class="lb-races">${r.races} wyśc.</span>
       <span class="lb-best">${r.best != null ? r.best + "s" : "—"}</span>
     </div>`).join("");
@@ -1451,7 +1450,7 @@ function showToast(text) {
   if (cls && lb) cls.addEventListener("click", () => lb.classList.remove("show"));
 }
 
-// ===== Telemetria — panel diagnostyczny (⚙️ Ustawienia albo klawisz F3) =====
+// ===== Telemetria — panel diagnostyczny (Ustawienia albo klawisz F3) =====
 function stdev(a) {
   if (a.length < 2) return 0;
   const m = a.reduce((s, v) => s + v, 0) / a.length;
@@ -1549,7 +1548,7 @@ function enterLobby(list) {
   mode = "lobby";
   hideJoin(); hideWait(); hideDrawUI();
   banner.classList.remove("show");
-  if (trackLabel) trackLabel.textContent = "🏁 Lobby";
+  if (trackLabel) trackLabel.textContent = "Lobby";
   const lbEl = document.getElementById("leaderboard");
   if (lbEl) lbEl.classList.remove("show");     // nie zostawiaj tabeli pod lobby
   const el = document.getElementById("lobby");
@@ -1558,7 +1557,7 @@ function enterLobby(list) {
   myReady = !!(me_ && me_.ready);
   const btn = document.getElementById("readyBtn");
   if (btn) {
-    btn.textContent = myReady ? "⏳ Czekam na resztę (kliknij, by cofnąć)" : "✅ Jestem gotowy";
+    btn.textContent = myReady ? "Czekam na resztę (kliknij, by cofnąć)" : "Jestem gotowy";
     btn.classList.toggle("on", myReady);
   }
   const gotowi = list.filter(p => p.ready).length;
@@ -1593,7 +1592,7 @@ function renderLobbyList(list) {
     nm.textContent = p.name + (p.id === myId ? " (Ty)" : "");
     const rd = document.createElement("span");
     rd.className = "lp-ready " + (p.ready ? "yes" : "no");
-    rd.textContent = p.ready ? "✅ Gotowy" : "⏳ Czeka";
+    rd.textContent = p.ready ? "Gotowy" : "Czeka";
     row.append(cv, nm, rd);
     box.appendChild(row);
   }
@@ -1604,7 +1603,7 @@ function renderLobbyList(list) {
   if (btn) btn.addEventListener("click", () => {
     if (mode !== "lobby") return;                 // w trakcie wyścigu gotowość nic nie zmienia
     myReady = !myReady;
-    btn.textContent = myReady ? "⏳ Czekam na resztę (kliknij, by cofnąć)" : "✅ Jestem gotowy";
+    btn.textContent = myReady ? "Czekam na resztę (kliknij, by cofnąć)" : "Jestem gotowy";
     btn.classList.toggle("on", myReady);
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "ready", ready: myReady }));
@@ -1637,15 +1636,15 @@ function hideDrawUI() { if (drawUI) drawUI.classList.remove("show"); }
 function enterWaiting(name) {
   mode = "waiting";
   hideJoin(); hideDrawUI(); hideLobby();
-  showWait(`🎨 ${name || "gracz"} rysuje trasę…`);
-  if (trackLabel) trackLabel.textContent = "🎨 rysowanie trasy";
+  showWait(`${name || "gracz"} rysuje trasę…`);
+  if (trackLabel) trackLabel.textContent = "rysowanie trasy";
 }
 
 function enterSpectator(t, winnerObj) {
   mode = "spectating";
   hideJoin(); hideDrawUI();
   if (t) applyTrack(t);
-  showWait("👀 Oglądasz — dołączysz w następnej rundzie");
+  showWait("Oglądasz — dołączysz w następnej rundzie");
   if (winnerObj) showWinner(winnerObj.name); else banner.classList.remove("show");
 }
 
@@ -1657,7 +1656,7 @@ function enterDrawing(world, seconds) {
   drawingActive = false;
   drawDeadline = performance.now() + (seconds || 45) * 1000;
   showDrawUI();
-  if (trackLabel) trackLabel.textContent = "✏️ Rysujesz trasę!";
+  if (trackLabel) trackLabel.textContent = "Rysujesz trasę!";
 }
 
 function startRace(t) {
@@ -1894,10 +1893,10 @@ async function wczytajDomyslnySilnik() {
     if (!r.ok) throw new Error("http " + r.status);
     engineBuffer = await audioCtx.decodeAudioData(await r.arrayBuffer());
     rebuildEngines();
-    engineStatus("🔊 Silnik: nagranie (CC0)");
+    engineStatus("Silnik: nagranie (CC0)");
   } catch (e) {
     silnikWczytany = false;       // pozwól spróbować ponownie przy następnym ensureAudio
-    engineStatus("🎛️ Syntezator (nie udało się wczytać nagrania)");
+    engineStatus("Syntezator (nie udało się wczytać nagrania)");
   }
 }
 
@@ -2237,13 +2236,13 @@ async function loadEngineFile(file) {
     engineBuffer = await audioCtx.decodeAudioData(await file.arrayBuffer());
     rebuildEngines();
     settings.sound = true; saveSettings();
-    engineStatus("✅ Silnik: " + file.name);
-  } catch (e) { engineStatus("❌ Nie udało się wczytać pliku audio"); }
+    engineStatus("Silnik: " + file.name);
+  } catch (e) { engineStatus("Nie udało się wczytać pliku audio"); }
 }
 async function loadEngineURL(url) {
   if (!url) return;
   if (/youtu\.?be/i.test(url)) {
-    engineStatus("❌ YouTube się nie da (to strona wideo, nie plik audio). Wklej link do pliku .mp3/.wav.");
+    engineStatus("YouTube się nie da (to strona wideo, nie plik audio). Wklej link do pliku .mp3/.wav.");
     return;
   }
   ensureAudio(); if (!audioCtx) return;
@@ -2254,17 +2253,17 @@ async function loadEngineURL(url) {
     if (!r.ok) {
       let msg = "nie udało się pobrać";
       try { msg = (await r.json()).error || msg; } catch (e) {}
-      engineStatus("❌ " + msg);
+      engineStatus(msg);
       return;
     }
     engineBuffer = await audioCtx.decodeAudioData(await r.arrayBuffer());
     rebuildEngines();
     settings.sound = true; saveSettings();
-    engineStatus("✅ Silnik z linku wczytany");
-  } catch (e) { engineStatus("❌ Zły format (to nie audio?) — spróbuj innego pliku"); }
+    engineStatus("Silnik z linku wczytany");
+  } catch (e) { engineStatus("Zły format (to nie audio?) — spróbuj innego pliku"); }
 }
 function useSynthEngine() {
-  engineBuffer = null; rebuildEngines(); engineStatus("🎛️ Syntezator (domyślny)");
+  engineBuffer = null; rebuildEngines(); engineStatus("Syntezator (domyślny)");
 }
 
 // ===== Okno Ustawień =====
@@ -2358,8 +2357,8 @@ function useSynthEngine() {
     if ($("voiceKeyRow")) $("voiceKeyRow").style.display =
       (settings.voiceMode === "open") ? "none" : "";
     if (settings.voice) voiceStatus(settings.voiceMode === "open"
-      ? "🎙️ Mikrofon nadaje cały czas"
-      : `🎙️ Trzymaj [${etykietaKlawisza(settings.voiceKey)}], żeby mówić`);
+      ? "Mikrofon nadaje cały czas"
+      : `Trzymaj [${etykietaKlawisza(settings.voiceKey)}], żeby mówić`);
   });
   // Rebind klawisza mówienia: kliknij, potem wciśnij dowolny klawisz.
   let nasluchKlawisza = false;
@@ -2376,13 +2375,13 @@ function useSynthEngine() {
     const zajete = ["w","a","s","d"," ","arrowup","arrowdown","arrowleft","arrowright"];
     if (zajete.includes(k.toLowerCase && k.toLowerCase())) {
       $("setVoiceKey").textContent = etykietaKlawisza(settings.voiceKey);
-      voiceStatus("⚠️ Ten klawisz jest zajęty przez jazdę — wybierz inny");
+      voiceStatus("Ten klawisz jest zajęty przez jazdę — wybierz inny");
       return;
     }
     settings.voiceKey = k; saveSettings();
     $("setVoiceKey").textContent = etykietaKlawisza(k);
     if (settings.voice && settings.voiceMode !== "open")
-      voiceStatus(`🎙️ Trzymaj [${etykietaKlawisza(k)}], żeby mówić`);
+      voiceStatus(`Trzymaj [${etykietaKlawisza(k)}], żeby mówić`);
   }, true);  // capture: łapiemy zanim zwykły handler jazdy zadziała
   if ($("setTel")) $("setTel").addEventListener("change", (e) => {
     settings.telemetry = e.target.checked; saveSettings();
@@ -2413,7 +2412,7 @@ async function enableVoice() {
   } catch (e) {
     settings.voice = false;
     const cb = document.getElementById("setVoice"); if (cb) cb.checked = false;
-    voiceStatus("❌ Brak dostępu do mikrofonu");
+    voiceStatus("Brak dostępu do mikrofonu");
     return;
   }
   settings.voice = true; saveSettings();
@@ -2446,8 +2445,8 @@ async function enableVoice() {
     ws.send(int16.buffer);                                      // binarnie (bez base64/JSON)
   };
   voiceStatus(settings.voiceMode === "open"
-    ? "🎙️ Włączony — mikrofon nadaje cały czas"
-    : `🎙️ Włączony — trzymaj [${etykietaKlawisza(settings.voiceKey)}], żeby mówić`);
+    ? "Włączony — mikrofon nadaje cały czas"
+    : `Włączony — trzymaj [${etykietaKlawisza(settings.voiceKey)}], żeby mówić`);
 }
 
 function disableVoice() {
@@ -2456,7 +2455,7 @@ function disableVoice() {
   if (micSink) { try { micSink.disconnect(); } catch (e) {} micSink = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   for (const id in voicePeers) { try { voicePeers[id].gain.disconnect(); } catch (e) {} delete voicePeers[id]; }
-  voiceStatus("🎙️ Wyłączony");
+  voiceStatus("Wyłączony");
 }
 
 // Odebrana ramka binarna: [2 bajty id nadawcy][PCM Int16, VOICE_RATE].

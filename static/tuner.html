@@ -42,7 +42,7 @@
 </head>
 <body>
 <header>
-  <h1>🔧 Regulacja wyglądu aut</h1>
+  <h1>Regulacja wyglądu aut</h1>
   <p>Kręć suwakami, aż będzie dobrze — potem kliknij <b>Kopiuj liczby</b> i wklej mi je.
      Ta strona rysuje <b>tym samym kodem co gra</b>, więc to, co tu widzisz, zobaczysz w wyścigu.</p>
 </header>
@@ -65,7 +65,7 @@
     <h2>Stylistyka (wszystkie klasy)</h2>
     <div id="styl"></div>
     <div class="acts">
-      <button id="kopiuj">📋 Kopiuj liczby</button>
+      <button id="kopiuj">Kopiuj liczby</button>
       <button id="reset" class="ghost">↺ Od nowa</button>
     </div>
     <textarea id="out" readonly></textarea>
@@ -200,8 +200,8 @@ document.getElementById("kopiuj").onclick = async () => {
   try { await navigator.clipboard.writeText(t.value); }
   catch (e) { t.select(); document.execCommand("copy"); }
   const b = document.getElementById("kopiuj");
-  b.textContent = "✅ Skopiowane — wklej mi to";
-  setTimeout(() => (b.textContent = "📋 Kopiuj liczby"), 2000);
+  b.textContent = "Skopiowane";
+  setTimeout(() => (b.textContent = "Kopiuj liczby"), 2000);
 };
 document.getElementById("reset").onclick = () => {
   Object.assign(ART, START.ART);

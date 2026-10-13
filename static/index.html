@@ -122,6 +122,7 @@
     .tbtn:active, .tbtn.on { background: rgba(79,124,255,.85); border-color: #9db6ff; }
     .tb-gas { width: 88px; height: 88px; background: rgba(35,120,60,.72); border-color: #3f8f5a; }
     .tb-gas:active, .tb-gas.on { background: rgba(60,200,110,.9); }
+    .tb-boost, .tb-mic { font-size: 14px; font-weight: 800; letter-spacing: .5px; }
     .tb-boost { width: 62px; height: 62px; background: rgba(120,90,20,.72); border-color: #8a6b23; }
     .tb-boost:active, .tb-boost.on { background: rgba(255,196,60,.9); color: #2a1e00; }
     .tb-brake { width: 62px; height: 62px; }
@@ -414,11 +415,11 @@
   </style>
 </head>
 <body>
-  <h1>🏁 Wyścigi — multiplayer</h1>
-  <div id="hint">Ustawienia, sterowanie i zasady: przycisk <b>⚙️ Ustawienia</b> w rogu planszy</div>
+  <h1>Wyścigi — multiplayer</h1>
+  <div id="hint">Ustawienia, sterowanie i zasady: przycisk <b>Ustawienia</b> w rogu planszy</div>
 
   <div id="join">
-    <div id="joinTitle">🚗 Przygotuj auto
+    <div id="joinTitle">Przygotuj auto
       <span>Wpisz nick, wybierz karoserię i kolory — potem wchodzisz do lobby</span>
     </div>
     <div class="join-row">
@@ -434,29 +435,29 @@
     </div>
     <label id="saveRow">
       <input type="checkbox" id="setSave" checked />
-      <span><b>💾 Zapisuj moje wyniki</b> na tym urządzeniu<br />
+      <span><b>Zapisuj moje wyniki</b> na tym urządzeniu<br />
       <em>Odznacz, żeby grać jako gość — wtedy grasz normalnie, ale nic nie trafia do rankingu.</em></span>
     </label>
     <label id="telRow">
       <input type="checkbox" id="setTelSend" />
-      <span><b>📊 Wysyłaj telemetrię wydajności</b> po wyścigu<br />
+      <span><b>Wysyłaj telemetrię wydajności</b> po wyścigu<br />
       <em>Pomaga namierzyć, co zacina — mierzone są klatki, ping i sprzęt, nic więcej.</em></span>
     </label>
-    <div id="joinHint" class="hint-kbd">🎮 <b>W</b>/↑ gaz · <b>S</b>/↓ hamulec · <b>A D</b>/← → skręt · <b>spacja</b> boost · <b>V</b> mów</div>
-    <div id="joinHintTouch" class="hint-touch">🎮 <b>▲</b> gaz · <b>▼</b> hamulec · <b>◀ ▶</b> skręt · <b>🚀</b> boost · <b>🎙️</b> mów — kciukami po bokach ekranu</div>
+    <div id="joinHint" class="hint-kbd"><b>W</b>/↑ gaz · <b>S</b>/↓ hamulec · <b>A D</b>/← → skręt · <b>spacja</b> boost · <b>V</b> mów</div>
+    <div id="joinHintTouch" class="hint-touch"><b>▲</b> gaz · <b>▼</b> hamulec · <b>◀ ▶</b> skręt · <b>NITRO</b> boost · <b>MIK</b> mów — kciukami po bokach ekranu</div>
     <button id="joinBtn">Dołącz do lobby →</button>
   </div>
 
   <div id="wrap">
     <canvas id="c" width="1100" height="720"></canvas>
     <div id="status">łączenie…</div>
-    <div id="trackLabel">🏁 Tor</div>
+    <div id="trackLabel">Tor</div>
     <div id="countdown"></div>
     <div id="boost">
-      <span class="label"><span class="kbd-only">🚀 Spacja</span><span class="touch-only">🚀 Boost</span></span>
+      <span class="label"><span class="kbd-only">Spacja</span><span class="touch-only">Boost</span></span>
       <div id="boostTrack"><div id="boostFill"></div></div>
     </div>
-    <div id="ptt">🎙️ MÓWISZ</div>
+    <div id="ptt">MÓWISZ</div>
     <div id="touch">
       <div class="tc-left">
         <button class="tbtn" data-key="a">◀</button>
@@ -464,41 +465,41 @@
       </div>
       <div class="tc-right">
         <button class="tbtn tb-brake" data-key="s">▼</button>
-        <button class="tbtn tb-boost" data-key=" ">🚀</button>
+        <button class="tbtn tb-boost" data-key=" ">NITRO</button>
         <button class="tbtn tb-gas" data-key="w">▲</button>
       </div>
-      <button id="tMic" class="tbtn tb-mic" data-key="v">🎙️</button>
+      <button id="tMic" class="tbtn tb-mic" data-key="v">MIK</button>
     </div>
-    <div id="telemetry"><div class="tel-head">📊 Telemetria <span>(F3)</span></div><div id="telBody">zbieram dane…</div></div>
+    <div id="telemetry"><div class="tel-head">Telemetria <span>(F3)</span></div><div id="telBody">zbieram dane…</div></div>
     <div id="waitOverlay"></div>
     <div id="lobby">
       <div class="lobby-card">
         <div class="lobby-head">
-          <h2>🏁 Poczekalnia</h2>
+          <h2>Poczekalnia</h2>
           <span class="sub" id="lobbySub">Wyścig ruszy, gdy wszyscy będą gotowi</span>
         </div>
         <div id="lobbyProgress"><div id="lobbyProgressFill"></div><span id="lobbyProgressText">Gotowi 0/0</span></div>
         <div id="lobbyList"></div>
-        <button id="readyBtn">✅ Jestem gotowy</button>
+        <button id="readyBtn">Jestem gotowy</button>
       </div>
     </div>
     <div id="drawUI">
-      <span class="msg">✏️ Narysuj trasę myszką — <b>gdzie zaczniesz to START, gdzie skończysz to META</b>. Program obuduje linię ścianami.</span>
+      <span class="msg">Narysuj trasę myszką — <b>gdzie zaczniesz to START, gdzie skończysz to META</b>. Program obuduje linię ścianami.</span>
       <span id="drawTimer">45s</span>
       <button id="drawClear">Wyczyść</button>
-      <button id="drawSubmit">Zaczynamy! 🏁</button>
+      <button id="drawSubmit">Zaczynamy</button>
     </div>
     <div id="banner">
       <div class="big" id="bannerBig">—</div>
       <div class="sub" id="bannerSub"></div>
-      <button id="rematchBtn">🔄 Nowy wyścig</button>
+      <button id="rematchBtn">Nowy wyścig</button>
     </div>
 
-    <button id="lbToggle">🏆 Wyniki</button>
+    <button id="lbToggle">Wyniki</button>
     <div id="toast"></div>
     <div id="leaderboard">
       <div class="lb-card">
-        <h2>🏆 Tabela wyników</h2>
+        <h2>Tabela wyników</h2>
         <p class="sub">Ranking po zwycięstwach · przy remisie liczy się najlepszy czas</p>
         <div class="lb-head">
           <span>#</span><span>Gracz</span><span>Wygrane</span><span>Wyścigi</span><span>Best</span>
@@ -509,16 +510,16 @@
       </div>
     </div>
 
-    <button id="setToggle">⚙️ Ustawienia</button>
+    <button id="setToggle">Ustawienia</button>
     <div id="settings">
       <div class="set-card">
-        <h2>⚙️ Ustawienia i sterowanie</h2>
+        <h2>Ustawienia i sterowanie</h2>
 
         <h3>Sterowanie</h3>
         <ul class="rules">
           <li><b>W</b> / <b>↑</b> — gaz &nbsp; <b>S</b> / <b>↓</b> — hamulec/wsteczny (W+S = hamulec)</li>
           <li><b>A</b> / <b>D</b> — skręt</li>
-          <li><b>Spacja</b> — booster 🚀 (na starcie pusty, ładuje się w trakcie jazdy)</li>
+          <li><b>Spacja</b> — booster (na starcie pusty, ładuje się w trakcie jazdy)</li>
           <li><b>V</b> — mów na czacie głosowym (trzymaj, żeby nadawać)</li>
         </ul>
 
@@ -527,43 +528,43 @@
           <li>Dojedź pierwszy do niebieskiej <b>METY</b> — wygrywasz.</li>
           <li>Mapy na przemian: raz <b>rysuje losowy gracz</b>, raz <b>losowa</b>.</li>
           <li>Kto dołączy w trakcie — czeka jako <b>widz</b> i wchodzi w następnej rundzie.</li>
-          <li>Wyniki i czasy trafiają do <b>tabeli 🏆</b>.</li>
+          <li>Wyniki i czasy trafiają do <b>tabeli wyników</b>.</li>
         </ul>
 
         <h3>Dźwięk</h3>
-        <div class="set-row"><label for="setSound">🔊 Silnik</label><input type="checkbox" id="setSound" /></div>
-        <div class="set-row"><label for="setSfx">💥 Efekty (uderzenia, pisk opon)</label><input type="checkbox" id="setSfx" /></div>
-        <div class="set-row"><label for="setArt">🎨 Grafiki aut (Kenney) zamiast rysowanych kodem</label><input type="checkbox" id="setArt" /></div>
+        <div class="set-row"><label for="setSound">Silnik</label><input type="checkbox" id="setSound" /></div>
+        <div class="set-row"><label for="setSfx">Efekty (uderzenia, pisk opon)</label><input type="checkbox" id="setSfx" /></div>
+        <div class="set-row"><label for="setArt">Grafiki aut (Kenney) zamiast rysowanych kodem</label><input type="checkbox" id="setArt" /></div>
         <div class="set-row"><span>Głośność ogólna</span><input type="range" id="setVol" min="0" max="1" step="0.05" /></div>
         <div class="set-row"><span>Głośność silnika</span><input type="range" id="setEngVol" min="0" max="1" step="0.05" /></div>
         <div class="set-row"><span>Głośność efektów</span><input type="range" id="setSfxVol" min="0" max="1" step="0.05" /></div>
         <div class="set-row"><span>Charakter silnika</span><input type="range" id="setPitch" min="0.5" max="1.8" step="0.05" /></div>
-        <div class="set-row"><label for="setHear">👥 Słysz silniki innych graczy</label><input type="checkbox" id="setHear" /></div>
+        <div class="set-row"><label for="setHear">Słysz silniki innych graczy</label><input type="checkbox" id="setHear" /></div>
 
         <h3>Odsłuch — dobierz brzmienie uchem</h3>
         <p class="set-note">Każda klasa ma <b>inną liczbę cylindrów</b>, więc brzmi inaczej z konstrukcji: częstotliwość zapłonów to <b>obroty ÷ 60 × cylindry ÷ 2</b>. Kliknij, żeby usłyszeć rozpędzanie przez wszystkie biegi.</p>
         <div class="set-row snd-test">
-          <button class="mini" data-rev="sport">🏎️ Sport · R6</button>
-          <button class="mini" data-rev="muscle">💪 Muscle · V8</button>
-          <button class="mini" data-rev="van">🚐 Van · R4</button>
-          <button class="mini" data-rev="kart">🛺 Kart · R2</button>
+          <button class="mini" data-rev="sport">Sport · R6</button>
+          <button class="mini" data-rev="muscle">Muscle · V8</button>
+          <button class="mini" data-rev="van">Van · R4</button>
+          <button class="mini" data-rev="kart">Kart · R2</button>
         </div>
         <div class="set-row snd-test">
-          <button class="mini" data-sfx="wall">🧱 Uderzenie w murek</button>
-          <button class="mini" data-sfx="wallHard">🧱 …mocne</button>
-          <button class="mini" data-sfx="crash">🚗 Zderzenie aut</button>
-          <button class="mini" data-sfx="squeal">🛞 Pisk opon</button>
+          <button class="mini" data-sfx="wall">Uderzenie w murek</button>
+          <button class="mini" data-sfx="wallHard">…mocne</button>
+          <button class="mini" data-sfx="crash">Zderzenie aut</button>
+          <button class="mini" data-sfx="squeal">Pisk opon</button>
         </div>
 
         <h3>Własny dźwięk silnika</h3>
         <p class="set-note">Wklej <b>bezpośredni link do pliku .mp3/.wav</b> — serwer pobierze go za Ciebie (bez ściągania na dysk). Albo wgraj własny plik. <b>YouTube NIE zadziała</b> (to strona wideo, nie plik audio). Gra zapętli dźwięk i podniesie ton z obrotami; gra tylko u Ciebie. Darmowe: freesound.org (CC0) → „V8 engine loop".</p>
-        <div class="set-row"><label for="engFile">🎧 Wgraj plik audio (.mp3/.wav)</label><input type="file" id="engFile" accept="audio/*" /></div>
+        <div class="set-row"><label for="engFile">Wgraj plik audio (.mp3/.wav)</label><input type="file" id="engFile" accept="audio/*" /></div>
         <div class="set-row"><input type="text" id="engUrl" placeholder="…lub bezpośredni link do pliku .mp3/.wav (NIE YouTube)" /><button id="engUrlBtn" class="mini">Wczytaj</button></div>
-        <div class="set-row"><button id="engSynth" class="mini">🎛️ Wróć do syntezatora</button><span id="engStatus">🔊 Silnik: nagranie (CC0)</span></div>
+        <div class="set-row"><button id="engSynth" class="mini">Wróć do syntezatora</button><span id="engStatus">Silnik: nagranie (CC0)</span></div>
 
         <h3>Czat głosowy (proximity)</h3>
         <p class="set-note"><b>Głos słychać tym głośniej, im bliżej macie auta.</b> Wymaga zgody na mikrofon.</p>
-        <div class="set-row"><label for="setVoice">🎙️ Włącz czat głosowy</label><input type="checkbox" id="setVoice" /></div>
+        <div class="set-row"><label for="setVoice">Włącz czat głosowy</label><input type="checkbox" id="setVoice" /></div>
         <div class="set-row"><span>Tryb mikrofonu</span>
           <select id="setVoiceMode">
             <option value="ptt">Na przycisk (trzymaj, by mówić)</option>
@@ -573,12 +574,12 @@
         <div class="set-row" id="voiceKeyRow"><span>Klawisz mówienia</span>
           <button id="setVoiceKey" class="mini">V</button>
         </div>
-        <div class="set-row"><label for="setRange">🔵 Pokaż okrąg zasięgu głosu</label><input type="checkbox" id="setRange" /></div>
+        <div class="set-row"><label for="setRange">Pokaż okrąg zasięgu głosu</label><input type="checkbox" id="setRange" /></div>
         <div class="set-row"><span>Zasięg głosu</span><input type="range" id="setVoiceRange" min="400" max="2200" step="50" /></div>
-        <div class="set-row"><span id="voiceStatus">🎙️ Wyłączony</span></div>
+        <div class="set-row"><span id="voiceStatus">Wyłączony</span></div>
 
         <h3>Diagnostyka</h3>
-        <div class="set-row"><label for="setTel">📊 Telemetria (FPS, ping, jitter) — klawisz F3</label><input type="checkbox" id="setTel" /></div>
+        <div class="set-row"><label for="setTel">Telemetria (FPS, ping, jitter) — klawisz F3</label><input type="checkbox" id="setTel" /></div>
 
         <button id="setClose">Zamknij</button>
       </div>
@@ -586,7 +587,7 @@
   </div>
 
   <script src="carart.js?v=4"></script>
-  <script src="game.js?v=83"></script>
-  <div id="rotate">📱↻<br>Obróć telefon poziomo,<br>żeby zagrać wygodnie</div>
+  <script src="game.js?v=84"></script>
+  <div id="rotate">Obróć telefon poziomo,<br>żeby zagrać wygodnie</div>
 </body>
 </html>
